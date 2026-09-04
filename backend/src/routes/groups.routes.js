@@ -44,6 +44,17 @@ async function loadGroup(groupId) {
   return rows[0] ?? null;
 }
 
+/**
+ * Membership is frozen once a room has been handed out: dropping a member from
+ * an allotted group would leave a room short of occupants without anyone
+ * noticing. Changes after allotment go through an admin swap instead.
+ */
+function assertMembershipOpen(group) {
+  if (group.status === 'allotted') {
+    throw conflict('This group is already allotted; membership is locked');
+  }
+}
+
 /** Throws unless the caller leads the group (admins bypass). */
 async function assertGroupLead(user, groupId) {
   const { rows } = await query('SELECT group_lead_id, status FROM groups WHERE id = $1', [
@@ -160,7 +171,7 @@ router.post(
   validate(addMemberSchema),
   asyncHandler(async (req, res) => {
     const groupId = req.params.id;
-    await assertGroupLead(req.user, groupId);
+    assertMembershipOpen(await assertGroupLead(req.user, groupId));
 
     const group = await withTransaction(async (client) => {
       // Lock the group row so two concurrent invites cannot both see 3 members.
@@ -192,6 +203,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id: groupId, studentId } = req.params;
     const group = await assertGroupLead(req.user, groupId);
+    assertMembershipOpen(group);
 
     if (group.group_lead_id === studentId) {
       throw badRequest('The group lead cannot be removed; delete the group instead');
