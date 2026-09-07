@@ -27,9 +27,11 @@ for each group:
 
 Three properties the implementation guarantees:
 
-**Idempotent.** Only `active` groups and rooms with no allotment row for the
-semester are considered. Re-running places newly-added groups without moving
-anyone already placed — so it is safe to run again after late registrations.
+**Idempotent.** Only groups that do not already hold a room (`active` or
+`waitlist`) and rooms with no allotment row for the semester are considered.
+Re-running places newly-added groups — and reconsiders waitlisted ones, so a
+room returning from maintenance reaches the queue — without moving anyone
+already placed.
 Note this makes re-runs *incremental*, not a redo: a late group with a higher
 CGPA does not evict an existing allotment, it takes what is left. To reallocate
 from scratch, clear that semester's `allotments` and reset group statuses.
@@ -75,9 +77,41 @@ npm run seed -- --demo        # 4 hostels, 200 rooms, staff login, sample groups
 npm run dev                   # http://localhost:4000
 ```
 
-`npm run seed` alone loads only reference data (hostels, room types, rooms and
-a staff login). Add `--demo` for sample students and groups to try the batch
-job against. Both are idempotent — re-seeding adds only what is missing.
+`npm run seed` alone loads only reference data: 4 hostels, 11 room types, 108
+rooms (4 of them out of service) and the staff logins. Two sample datasets sit
+on top of it:
+
+| Flag | Contents |
+|---|---|
+| `--demo` | 6 groups, 24 students — a fast smoke test |
+| `--dataset` | **200 students in 49 groups** — realistic, for demos and load |
+
+All of it is idempotent, and the dataset uses a seeded PRNG so it is byte-for-byte
+the same on every machine.
+
+### The 200-student dataset
+
+Shaped to exercise every branch of the allotment rather than to look tidy:
+
+| | |
+|---|---|
+| 40 complete groups (160 students) | compete for **36** capacity-4 rooms |
+| 9 undersized groups (20 students) | sizes 1, 2 and 3 — ineligible, waitlisted |
+| 20 ungrouped students | never joined a group |
+| 3 complete groups | never submitted preferences |
+| Preference lists | vary from 2 to 10 entries |
+| CGPA | normal curve around 7.6, clamped to 5.0–10.0 |
+
+Rooms are uneven by design — Hostel A is the premium block, Hostel D the budget
+one — so preferences genuinely compete instead of every hostel being
+interchangeable. Popular types (AC, Premium, Balcony) are weighted to appear
+near the top of most preference lists, which is what makes the CGPA ranking
+decide anything.
+
+A run over this dataset places 24 groups, waitlists 16 and skips 9 as
+incomplete, matching preference ranks 1 through 5 across all five capacity-4
+room types and all four hostels — with rooms still free, because a group is
+never forced into a room it did not ask for.
 
 Seeded logins:
 
@@ -132,7 +166,7 @@ carry different roles; `/api/admin/*` requires `admin` or `caretaker`.
 | `PATCH` | `/api/students/:id` | self or admin | Update profile |
 | `POST` | `/api/groups` | student | Create a group (caller becomes lead) |
 | `GET` | `/api/groups/mine` | student | Caller's group this semester |
-| `GET` | `/api/groups/:id` | — | Group with members |
+| `GET` | `/api/groups/:id` | members or staff | Group with members |
 | `POST` | `/api/groups/:id/members` | lead | Add a member |
 | `DELETE` | `/api/groups/:id/members/:studentId` | lead | Remove a member |
 | `GET` | `/api/groups/:id/preferences` | — | Current ranking |
@@ -146,15 +180,53 @@ carry different roles; `/api/admin/*` requires `admin` or `caretaker`.
 | `DELETE` | `/api/groups/:id/invites/:inviteId` | lead | Revoke a pending invite |
 | `GET` | `/api/invites/:token` | — | Preview an invite (works signed out) |
 | `POST` | `/api/invites/:token/accept` | student | Join the group |
-| `GET` | `/api/allotments` | — | All allotments for a semester |
+| `GET` | `/api/allotments` | **staff** | All allotments for a semester |
 | `GET` | `/api/allotments/mine` | student | Caller's result |
 | `GET` | `/api/admin/groups` | staff | Allotment queue, sortable by CGPA |
 | `POST` | `/api/admin/allocate` | **admin** | **Run the batch job** |
 | `GET` | `/api/admin/occupancy` | staff | Occupancy (caretakers: own hostel) |
+| `GET` | `/api/admin/results` | staff | Whether results are published |
+| `POST` | `/api/admin/results/publish` | **admin** | Release results to students |
+| `POST` | `/api/admin/results/unpublish` | **admin** | Pull results back |
 | `GET` | `/api/admin/waitlist` | staff | Waitlisted groups by CGPA |
 | `GET` | `/api/admin/allotment-runs` | staff | Run history and summaries |
 
 ---
+
+## Results are published, not leaked
+
+Running the batch and releasing results are **separate steps**. An admin may run
+the allotment several times — after late registrations, after a room comes back
+from maintenance — and students should not watch a room appear, change, then
+change again.
+
+Until an admin presses **Publish results**, nothing student-facing reveals an
+outcome: not the room, not the waitlist place, not even the group's status,
+which reads `submitted` rather than `allotted` or `waitlist`. The API withholds
+the data rather than the UI hiding it, so there is nothing to leak through a
+devtools tab. `Unpublish` pulls it back if something needs correcting.
+
+Once the batch has ranked a group, its roster and preferences freeze — a
+changed roster means a changed average CGPA, which would invalidate the run.
+Before publication the refusal message stays deliberately vague ("group changes
+are closed while allotment is being processed"), because "you are already
+allotted" would give the outcome away.
+
+### What a student can and cannot see
+
+| | Student | Staff |
+|---|:---:|:---:|
+| Own group and its members | ● | ● |
+| Own result, **after publication** | ● | ● |
+| Every group ranked by CGPA | | ● |
+| Every allotment for the semester | | ● |
+| Other students' CGPAs | | ● |
+| Another group's details | | ● |
+
+The roster and the allotment list are the admin's view — to a student they are a
+leaderboard of who is ahead of them in the queue. Both now require a staff
+token, as does the student directory, which returns names and emails to a
+student but CGPAs only to staff.
 
 ## Roles
 
@@ -206,6 +278,8 @@ already carries the address to send to.
   through an admin swap.
 - Rooms in `maintenance` or `reserved` are never allotted.
 - An invite is single-use, expires, and holds a seat while pending.
+- Results stay hidden from students until an admin publishes them.
+- A group's roster and preferences freeze once the batch has ranked it.
 - Only an admin can run the allotment; caretakers are scoped to one hostel.
 - Every batch run is recorded in `allotment_runs` with its summary, who
   triggered it, and any error.
@@ -224,7 +298,10 @@ The schema follows the original spec with three deliberate changes:
    and set a password later.
 3. **`allotment_runs` added** — an audit row per batch run. `swap_audit_log` is
    likewise in place for the Phase 2 swap flow.
-4. **`group_invites` added** for join-by-link. A partial unique index keeps at
+4. **`semester_settings` added** — one row per semester holding
+   `results_published_at`. Publication is a property of the semester, not of any
+   individual allotment run, so re-running the batch does not re-expose results.
+5. **`group_invites` added** for join-by-link. A partial unique index keeps at
    most one *live* invite per email per group, so re-inviting someone replaces
    the old link rather than leaving several valid at once.
 
@@ -238,8 +315,9 @@ unique index rather than an application check that races.
 
 **Phase 1 (MVP) is complete**: schema and seed data, student auth, group
 formation with invite links, preference ranking, the batch allotment job,
-result view, the admin allotment queue, and the trigger page with occupancy and
-run history. The interface is a dark navy theme throughout.
+result view gated behind admin publication, the admin allotment queue, and the
+trigger page with occupancy and run history. The interface is a dark navy theme
+throughout.
 
 **Phase 2** — swap request queue with approve/reject, occupancy heatmap,
 allotment rollback per semester, and CSV/PDF export — is not built. The

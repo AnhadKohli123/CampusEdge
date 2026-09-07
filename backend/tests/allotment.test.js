@@ -237,6 +237,31 @@ test('a late group is placed by a re-run without disturbing the rest', { skip },
   assert.equal(lateRoom.matched_rank, 2);
 });
 
+test('a re-run places a waitlisted group once a room frees up', { skip }, async () => {
+  const { hostelA, fourSeater } = await tinyInventory();
+  const room = await makeRoom(pool, hostelA, fourSeater, 'HA-101', 'maintenance');
+
+  const group = await makeGroup(pool, {
+    name: 'Hopeful',
+    semester: SEMESTER,
+    cgpas: [8, 8, 8, 8],
+    prefs: [[hostelA, fourSeater]],
+  });
+
+  // Nothing available: the only room is out of service.
+  const first = await runAllotment({ semester: SEMESTER });
+  assert.equal(first.waitlisted, 1);
+  assert.equal(await groupStatus(pool, group.id), 'waitlist');
+
+  // The caretaker returns the room to service and the admin re-runs.
+  await pool.query(`UPDATE rooms SET status = 'active' WHERE id = $1`, [room.id]);
+  const second = await runAllotment({ semester: SEMESTER });
+
+  assert.equal(second.allotted, 1, 'the waitlisted group is reconsidered, not skipped');
+  assert.equal(await groupStatus(pool, group.id), 'allotted');
+  assert.equal((await allotmentFor(pool, group.id, SEMESTER)).room_number, 'HA-101');
+});
+
 test('groups with no preferences are waitlisted with a reason', { skip }, async () => {
   const { hostelA, fourSeater } = await tinyInventory();
   await makeRoom(pool, hostelA, fourSeater, 'HA-101');

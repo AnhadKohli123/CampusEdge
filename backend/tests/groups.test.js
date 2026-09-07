@@ -78,7 +78,9 @@ test('an allotted group cannot drop a member', { skip }, async () => {
   );
 
   assert.equal(response.status, 409);
-  assert.match((await response.json()).error, /already allotted/);
+  // The message stays neutral because results are not published in this
+  // fixture -- see privacy.test.js for why. The group is frozen either way.
+  assert.match((await response.json()).error, /closed while allotment is being processed/);
 
   const { rows } = await pool.query(
     'SELECT COUNT(*)::int AS n FROM group_members WHERE group_id = $1',

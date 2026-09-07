@@ -175,6 +175,16 @@ CREATE TABLE IF NOT EXISTS allotments (
 
 CREATE INDEX IF NOT EXISTS allotments_semester_idx ON allotments (semester);
 
+-- Per-semester switches the admin controls. Chiefly: results stay hidden from
+-- students until they are published, so running the batch early -- or re-running
+-- it -- does not dribble half-finished results out to the students.
+CREATE TABLE IF NOT EXISTS semester_settings (
+  semester             VARCHAR(32) PRIMARY KEY,
+  results_published_at TIMESTAMPTZ,
+  published_by         UUID REFERENCES admins(id) ON DELETE SET NULL,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Audit of every batch run, so re-runs and their outcomes are traceable.
 CREATE TABLE IF NOT EXISTS allotment_runs (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

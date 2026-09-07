@@ -115,8 +115,10 @@ export function GroupWizard() {
 
   const isLead = group?.group_lead_id === session?.user.id;
   const isFull = (group?.members.length ?? 0) >= GROUP_SIZE;
-  // Once a room is allotted the roster is frozen -- the API rejects changes too.
-  const isLocked = group?.status === 'allotted';
+  // Frozen once the batch has ranked the group. Students see the masked
+  // 'submitted' status until results are published; staff see the real one.
+  // Either way anything other than 'active' means the API will reject changes.
+  const isLocked = Boolean(group && group.status !== 'active');
 
   if (!group) {
     return (
@@ -277,8 +279,8 @@ export function GroupWizard() {
 
       {isLocked && (
         <EmptyState
-          title="Membership is locked"
-          hint="Your group has a room for this semester. Ask a caretaker to arrange a swap."
+          title="Group changes are closed"
+          hint="Allotment has been run for this semester, so the roster is fixed. Your result appears once the hostel office publishes it."
         />
       )}
 

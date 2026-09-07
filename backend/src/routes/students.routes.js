@@ -28,8 +28,12 @@ router.get(
   validate(listQuerySchema, 'query'),
   asyncHandler(async (req, res) => {
     const { search, limit, offset } = req.query;
+    const isStaff = req.user.role === 'admin' || req.user.role === 'caretaker';
+
+    // CGPA drives the whole queue, so the directory only exposes it to staff.
+    // A student searching for someone to add needs a name and an email.
     const { rows } = await query(
-      `SELECT id, email, name, cgpa, phone, created_at
+      `SELECT id, email, name, ${isStaff ? 'cgpa' : 'NULL::numeric AS cgpa'}, phone, created_at
          FROM students
         WHERE ($1::text IS NULL OR name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')
         ORDER BY name ASC

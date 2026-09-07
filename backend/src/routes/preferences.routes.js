@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { badRequest, conflict, forbidden, notFound } from '../utils/errors.js';
+import { isPublished } from '../services/results.service.js';
 
 const router = Router({ mergeParams: true });
 
@@ -53,7 +54,7 @@ router.put(
     const { preferences } = req.body;
 
     const { rows: groupRows } = await query(
-      'SELECT group_lead_id, status FROM groups WHERE id = $1',
+      'SELECT group_lead_id, status, semester FROM groups WHERE id = $1',
       [groupId]
     );
     if (groupRows.length === 0) throw notFound('Group not found');
@@ -62,8 +63,16 @@ router.put(
     if (req.user.role !== 'admin' && group.group_lead_id !== req.user.sub) {
       throw forbidden('Only the group lead can set preferences');
     }
-    if (group.status === 'allotted') {
-      throw conflict('This group is already allotted; preferences are locked');
+    if (group.status !== 'active') {
+      const published = await isPublished(group.semester);
+      if (!published) {
+        throw conflict('Preferences are closed while allotment is being processed');
+      }
+      throw conflict(
+        group.status === 'allotted'
+          ? 'This group is already allotted; preferences are locked'
+          : 'This group has been through allotment; ask the hostel office to reopen it'
+      );
     }
 
     // Reject duplicates up front -- the DB constraint would catch it, but the

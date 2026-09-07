@@ -74,11 +74,25 @@ export function AdminGroups() {
             Ranked by average CGPA — the order the batch job places groups in.
           </p>
         </div>
-        {isAdmin && (
-          <Link to="/admin" className="btn-primary">
-            Run allotment →
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {data && (
+            <span
+              className={`pill ring-1 ring-inset ${
+                data.resultsPublishedAt
+                  ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25'
+                  : 'bg-navy-700/60 text-ink-300 ring-navy-600'
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+              {data.resultsPublishedAt ? 'Results published' : 'Results hidden'}
+            </span>
+          )}
+          {isAdmin && (
+            <Link to="/admin" className="btn-primary">
+              Run allotment →
+            </Link>
+          )}
+        </div>
       </div>
 
       <ErrorBanner error={error} />

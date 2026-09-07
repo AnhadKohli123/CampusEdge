@@ -51,6 +51,9 @@ const TONES: Record<string, string> = {
   allotted: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25',
   waitlist: 'bg-amber-500/15 text-amber-300 ring-amber-500/25',
   active: 'bg-accent-500/15 text-accent-300 ring-accent-500/25',
+  // Deliberately neutral: shown to students before results are published, so
+  // it must not read as good or bad news.
+  submitted: 'bg-navy-700/60 text-ink-300 ring-navy-600',
   pending: 'bg-accent-500/15 text-accent-300 ring-accent-500/25',
   accepted: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25',
   expired: 'bg-navy-700/60 text-ink-400 ring-navy-600',

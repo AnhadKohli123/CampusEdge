@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getOccupancy, runAllotment } from '../services/allotment.service.js';
+import { getSettings, setPublished } from '../services/results.service.js';
 
 const router = Router();
 
@@ -125,12 +126,16 @@ router.get(
       [semester, config.groupSize]
     );
 
+    const settings = await getSettings(semester);
+
     res.json({
       semester,
       groups: rows,
       counts,
       readyToAllot: readyRows[0].n,
       groupSize: config.groupSize,
+      resultsPublishedAt: settings.results_published_at,
+      publishedByName: settings.published_by_name,
       sort,
       order,
     });
@@ -165,6 +170,48 @@ router.post(
       triggeredBy: req.user.sub,
     });
     res.json({ summary });
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Publishing results
+// ---------------------------------------------------------------------------
+
+const publishSchema = z.object({
+  semester: z.string().min(1).max(32).trim().default(config.currentSemester),
+});
+
+router.get(
+  '/results',
+  asyncHandler(async (req, res) => {
+    const semester = req.query.semester ?? config.currentSemester;
+    res.json({ settings: await getSettings(semester) });
+  })
+);
+
+/**
+ * Release results to students. Until this is called, nothing student-facing
+ * reveals a room or a waitlist place, so the batch can be run and re-run
+ * without students watching the result change under them.
+ */
+router.post(
+  '/results/publish',
+  requireRole('admin'),
+  validate(publishSchema),
+  asyncHandler(async (req, res) => {
+    const settings = await setPublished(req.body.semester, req.user.sub, true);
+    res.json({ settings });
+  })
+);
+
+/** Pull results back, e.g. to correct a mistake before students act on it. */
+router.post(
+  '/results/unpublish',
+  requireRole('admin'),
+  validate(publishSchema),
+  asyncHandler(async (req, res) => {
+    const settings = await setPublished(req.body.semester, req.user.sub, false);
+    res.json({ settings });
   })
 );
 

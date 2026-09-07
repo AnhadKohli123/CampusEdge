@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { query, withTransaction } from '../db.js';
 import { config } from '../config.js';
 import { validate } from '../middleware/validate.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { isPublished, maskStatus } from '../services/results.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { badRequest, conflict, forbidden, notFound } from '../utils/errors.js';
 
@@ -49,17 +50,43 @@ async function loadGroup(groupId) {
  * an allotted group would leave a room short of occupants without anyone
  * noticing. Changes after allotment go through an admin swap instead.
  */
-function assertMembershipOpen(group) {
-  if (group.status === 'allotted') {
-    throw conflict('This group is already allotted; membership is locked');
+async function assertMembershipOpen(group) {
+  if (group.status === 'active') return;
+
+  // Both 'allotted' and 'waitlist' mean the batch has already ranked this
+  // group, so its roster (and therefore its average CGPA) must stay put.
+  // Before results are published the reason has to stay vague: "already
+  // allotted" would tell the student they got a room, and "waitlisted" would
+  // tell them they did not.
+  const published = await isPublished(group.semester);
+  if (!published) {
+    throw conflict('Group changes are closed while allotment is being processed');
   }
+  throw conflict(
+    group.status === 'allotted'
+      ? 'This group is already allotted; membership is locked'
+      : 'This group has been through allotment; ask the hostel office to reopen it'
+  );
+}
+
+/** Staff see anything; a student sees only a group they belong to. */
+async function assertCanViewGroup(user, groupId) {
+  if (!user) throw forbidden('Sign in to view a group');
+  if (user.role === 'admin' || user.role === 'caretaker') return;
+
+  const { rows } = await query(
+    'SELECT 1 FROM group_members WHERE group_id = $1 AND student_id = $2',
+    [groupId, user.sub]
+  );
+  if (rows.length === 0) throw forbidden('You can only view your own group');
 }
 
 /** Throws unless the caller leads the group (admins bypass). */
 async function assertGroupLead(user, groupId) {
-  const { rows } = await query('SELECT group_lead_id, status FROM groups WHERE id = $1', [
-    groupId,
-  ]);
+  const { rows } = await query(
+    'SELECT group_lead_id, status, semester FROM groups WHERE id = $1',
+    [groupId]
+  );
   if (rows.length === 0) throw notFound('Group not found');
   if (user.role !== 'admin' && rows[0].group_lead_id !== user.sub) {
     throw forbidden('Only the group lead can modify this group');
@@ -116,8 +143,14 @@ const listSchema = z.object({
   status: z.enum(['active', 'allotted', 'waitlist']).optional(),
 });
 
+/**
+ * The full group roster with average CGPAs. Staff only -- for a student this is
+ * a leaderboard of who is ahead of them in the queue, which is not theirs to
+ * see. Students use /groups/mine instead.
+ */
 router.get(
   '/',
+  requireRole('admin', 'caretaker'),
   validate(listSchema, 'query'),
   asyncHandler(async (req, res) => {
     const { semester, status } = req.query;
@@ -150,16 +183,33 @@ router.get(
       [req.user.sub, semester]
     );
     if (rows.length === 0) return res.json({ group: null });
-    res.json({ group: await loadGroup(rows[0].id) });
+
+    const group = await loadGroup(rows[0].id);
+    const published = await isPublished(semester);
+    res.json({
+      group: { ...group, status: maskStatus(group.status, published) },
+      resultsPublished: published,
+    });
   })
 );
 
 router.get(
   '/:id',
+  requireAuth,
   asyncHandler(async (req, res) => {
+    await assertCanViewGroup(req.user, req.params.id);
+
     const group = await loadGroup(req.params.id);
     if (!group) throw notFound('Group not found');
-    res.json({ group });
+
+    const isStaff = req.user.role === 'admin' || req.user.role === 'caretaker';
+    if (isStaff) return res.json({ group });
+
+    const published = await isPublished(group.semester);
+    res.json({
+      group: { ...group, status: maskStatus(group.status, published) },
+      resultsPublished: published,
+    });
   })
 );
 
@@ -171,7 +221,7 @@ router.post(
   validate(addMemberSchema),
   asyncHandler(async (req, res) => {
     const groupId = req.params.id;
-    assertMembershipOpen(await assertGroupLead(req.user, groupId));
+    await assertMembershipOpen(await assertGroupLead(req.user, groupId));
 
     const group = await withTransaction(async (client) => {
       // Lock the group row so two concurrent invites cannot both see 3 members.
@@ -203,7 +253,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id: groupId, studentId } = req.params;
     const group = await assertGroupLead(req.user, groupId);
-    assertMembershipOpen(group);
+    await assertMembershipOpen(group);
 
     if (group.group_lead_id === studentId) {
       throw badRequest('The group lead cannot be removed; delete the group instead');

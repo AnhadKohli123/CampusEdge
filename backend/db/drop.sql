@@ -1,6 +1,7 @@
 -- Destructive: drops every table this app owns. Used by `npm run db:reset`.
 DROP TABLE IF EXISTS swap_audit_log CASCADE;
 DROP TABLE IF EXISTS swap_requests CASCADE;
+DROP TABLE IF EXISTS semester_settings CASCADE;
 DROP TABLE IF EXISTS allotment_runs CASCADE;
 DROP TABLE IF EXISTS allotments CASCADE;
 DROP TABLE IF EXISTS group_invites CASCADE;

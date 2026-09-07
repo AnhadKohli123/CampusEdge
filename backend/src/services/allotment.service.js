@@ -14,10 +14,11 @@ import { config } from '../config.js';
  * in a 6-bed room would strand two beds, and a 2-bed room cannot hold them at
  * all. Rooms whose capacity has no matching group size simply go unallotted.
  *
- * Idempotency: only groups with status 'active' are considered, and only rooms
- * with no allotment row for the semester are offered. A group that already
- * holds a room keeps it. Re-running is therefore safe and incremental -- it
- * places newly-added groups without disturbing existing placements.
+ * Idempotency: only groups that do not already hold a room are considered
+ * (status 'active' or 'waitlist'), and only rooms with no allotment row for the
+ * semester are offered. A group that already holds a room keeps it. Re-running
+ * is therefore safe and incremental -- it places newly-added and previously
+ * waitlisted groups without disturbing existing placements.
  *
  * Concurrency: everything runs in one SERIALIZABLE transaction, guarded by a
  * transaction-scoped advisory lock keyed on the semester, so two admins hitting
@@ -40,7 +41,11 @@ const ELIGIBLE_GROUPS_SQL = `
       LEFT JOIN group_members gm ON gm.group_id = g.id
       LEFT JOIN students s       ON s.id = gm.student_id
      WHERE g.semester = $1
-       AND g.status = 'active'
+       -- Waitlisted groups are reconsidered on every run: if a room comes back
+       -- from maintenance or a group disbands, they should get it. Only
+       -- already-allotted groups are skipped, which is what keeps re-runs from
+       -- moving anyone.
+       AND g.status IN ('active', 'waitlist')
      GROUP BY g.id
   )
   SELECT * FROM sized

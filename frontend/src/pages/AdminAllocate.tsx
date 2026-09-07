@@ -5,6 +5,12 @@ import { useAuth } from '../lib/auth';
 import { ErrorBanner, Spinner, Stat } from '../components/Feedback';
 import type { AllotmentSummary, Occupancy } from '../lib/types';
 
+type ResultSettings = {
+  semester: string;
+  results_published_at: string | null;
+  published_by_name: string | null;
+};
+
 /**
  * Allotment trigger and occupancy.
  *
@@ -24,20 +30,41 @@ export function AdminAllocate() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [confirming, setConfirming] = useState(false);
+  const [settings, setSettings] = useState<ResultSettings | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   const loadOccupancy = useCallback(async (term: string) => {
     setLoading(true);
     try {
-      const data = await api<Occupancy>(
-        `/admin/occupancy?semester=${encodeURIComponent(term)}`
-      );
-      setOccupancy(data);
+      const query = `?semester=${encodeURIComponent(term)}`;
+      const [occupancyData, settingsData] = await Promise.all([
+        api<Occupancy>(`/admin/occupancy${query}`),
+        api<{ settings: ResultSettings }>(`/admin/results${query}`),
+      ]);
+      setOccupancy(occupancyData);
+      setSettings(settingsData.settings);
     } catch (err) {
       setError(err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function setPublished(published: boolean) {
+    setPublishing(true);
+    setError(null);
+    try {
+      const data = await api<{ settings: ResultSettings }>(
+        `/admin/results/${published ? 'publish' : 'unpublish'}`,
+        { method: 'POST', body: { semester } }
+      );
+      setSettings(data.settings);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   useEffect(() => {
     void loadOccupancy(semester);
@@ -127,6 +154,52 @@ export function AdminAllocate() {
           </p>
         )}
       </section>
+
+      {isAdmin && (
+        <section className="card">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-medium text-ink-50">Results visibility</h2>
+              <p className="mt-1 max-w-lg text-sm text-ink-400">
+                {settings?.results_published_at
+                  ? `Published ${new Date(settings.results_published_at).toLocaleString()}${
+                      settings.published_by_name ? ` by ${settings.published_by_name}` : ''
+                    }. Students can see their rooms.`
+                  : 'Students cannot see any outcome yet — not their room, not their waitlist place. Run the batch as many times as you need, then publish.'}
+              </p>
+            </div>
+
+            {settings?.results_published_at ? (
+              <button
+                className="btn-secondary"
+                onClick={() => setPublished(false)}
+                disabled={publishing}
+              >
+                {publishing ? 'Working…' : 'Unpublish'}
+              </button>
+            ) : (
+              <button
+                className="btn-primary"
+                onClick={() => setPublished(true)}
+                disabled={publishing}
+              >
+                {publishing ? 'Publishing…' : 'Publish results'}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 border-t border-navy-700/70 pt-4">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                settings?.results_published_at ? 'bg-emerald-400' : 'bg-ink-500'
+              }`}
+            />
+            <span className="text-sm text-ink-300">
+              {settings?.results_published_at ? 'Visible to students' : 'Hidden from students'}
+            </span>
+          </div>
+        </section>
+      )}
 
       {summary && (
         <section className="card space-y-5">

@@ -22,7 +22,8 @@ export type Group = {
   name: string | null;
   group_lead_id: string;
   avg_cgpa: number | null;
-  status: 'active' | 'allotted' | 'waitlist';
+  /** 'submitted' is the masked value students see before results are out. */
+  status: 'active' | 'allotted' | 'waitlist' | 'submitted';
   semester: string;
   members: Pick<Student, 'id' | 'name' | 'email' | 'cgpa'>[];
 };
@@ -115,7 +116,7 @@ export type InvitePreview = {
 export type AdminGroupRow = {
   id: string;
   name: string | null;
-  status: Group['status'];
+  status: 'active' | 'allotted' | 'waitlist';
   avg_cgpa: number | null;
   member_count: number;
   preference_count: number;
@@ -133,6 +134,8 @@ export type AdminQueue = {
   counts: { active: number; allotted: number; waitlist: number };
   readyToAllot: number;
   groupSize: number;
+  resultsPublishedAt: string | null;
+  publishedByName: string | null;
   sort: string;
   order: 'asc' | 'desc';
 };
