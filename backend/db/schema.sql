@@ -117,6 +117,31 @@ CREATE TRIGGER group_members_semester_trg
 CREATE UNIQUE INDEX IF NOT EXISTS group_members_one_group_per_semester_idx
   ON group_members (student_id, semester);
 
+-- Invite links. A group lead generates one and shares it; the recipient opens
+-- the link and joins. An invite may be bound to an email address, in which case
+-- only a student with that email can accept it -- that is what makes a link
+-- safe to send to one person rather than post in a group chat.
+CREATE TABLE IF NOT EXISTS group_invites (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id    UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  token       VARCHAR(64) UNIQUE NOT NULL,
+  email       VARCHAR(255),         -- NULL = anyone with the link may accept
+  invited_by  UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  accepted_at TIMESTAMPTZ,
+  accepted_by UUID REFERENCES students(id) ON DELETE SET NULL,
+  revoked_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS group_invites_group_idx ON group_invites (group_id);
+
+-- At most one live invite per email per group, so re-inviting someone replaces
+-- rather than accumulates. Partial, so spent invites do not block a re-invite.
+CREATE UNIQUE INDEX IF NOT EXISTS group_invites_live_email_idx
+  ON group_invites (group_id, lower(email))
+  WHERE accepted_at IS NULL AND revoked_at IS NULL AND email IS NOT NULL;
+
 -- ---------------------------------------------------------------------------
 -- Preferences
 -- ---------------------------------------------------------------------------

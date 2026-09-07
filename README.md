@@ -141,14 +141,58 @@ carry different roles; `/api/admin/*` requires `admin` or `caretaker`.
 | `GET` | `/api/catalog/room-types` | — | Room types |
 | `GET` | `/api/catalog/rooms` | — | Rooms, filterable |
 | `PATCH` | `/api/catalog/rooms/:id/status` | staff | Maintenance toggle |
+| `POST` | `/api/groups/:id/invites` | lead | Create an invite (optionally email-bound) |
+| `GET` | `/api/groups/:id/invites` | lead | List invites and their state |
+| `DELETE` | `/api/groups/:id/invites/:inviteId` | lead | Revoke a pending invite |
+| `GET` | `/api/invites/:token` | — | Preview an invite (works signed out) |
+| `POST` | `/api/invites/:token/accept` | student | Join the group |
 | `GET` | `/api/allotments` | — | All allotments for a semester |
 | `GET` | `/api/allotments/mine` | student | Caller's result |
-| `POST` | `/api/admin/allocate` | staff | **Run the batch job** |
-| `GET` | `/api/admin/occupancy` | staff | Occupancy by hostel and room type |
+| `GET` | `/api/admin/groups` | staff | Allotment queue, sortable by CGPA |
+| `POST` | `/api/admin/allocate` | **admin** | **Run the batch job** |
+| `GET` | `/api/admin/occupancy` | staff | Occupancy (caretakers: own hostel) |
 | `GET` | `/api/admin/waitlist` | staff | Waitlisted groups by CGPA |
 | `GET` | `/api/admin/allotment-runs` | staff | Run history and summaries |
 
 ---
+
+## Roles
+
+| | Student | Caretaker | Admin |
+|---|:---:|:---:|:---:|
+| Form a group, invite members | ● | | |
+| Rank preferences | ● | | |
+| See own allotment result | ● | | |
+| View the allotment queue | | ● | ● |
+| Occupancy | | own hostel | all hostels |
+| Flag a room for maintenance | | own hostel | all hostels |
+| **Run the batch allotment** | | | ● |
+
+A caretaker looks after one hostel, so their occupancy view is scoped to it and
+they cannot flag rooms elsewhere or start a college-wide allocation. The UI
+hides what the API would refuse, rather than showing a button that 403s.
+
+### Joining a group by link
+
+A group lead invites people two ways:
+
+- **By email** — the invite is bound to that address, and only a student signed
+  in with it can accept. Safe to send to one person.
+- **Open link** — anyone holding the link can accept. Meant for a group chat.
+
+Either way the recipient opens `/join/<token>`, which renders signed out so it
+can say who invited them and how many seats are left before asking them to log
+in. Signing up through the link returns them to the invite to accept it.
+
+Invites expire after `INVITE_TTL_DAYS` (7 by default), are single-use, and can
+be revoked by the lead. **Pending invites count against the group size**, so a
+lead cannot send six links for two free seats and leave four people with a
+confusing error — the seats are held until the invite is used, revoked, or
+expires.
+
+Nothing is actually emailed yet: the API returns a link for the lead to share.
+Wiring an SMTP provider in is Phase 3 (notifications); `group_invites.email`
+already carries the address to send to.
 
 ## Rules enforced
 
@@ -161,6 +205,8 @@ carry different roles; `/api/admin/*` requires `admin` or `caretaker`.
   a member would leave a room short of occupants. Changes after allotment go
   through an admin swap.
 - Rooms in `maintenance` or `reserved` are never allotted.
+- An invite is single-use, expires, and holds a seat while pending.
+- Only an admin can run the allotment; caretakers are scoped to one hostel.
 - Every batch run is recorded in `allotment_runs` with its summary, who
   triggered it, and any error.
 
@@ -178,6 +224,9 @@ The schema follows the original spec with three deliberate changes:
    and set a password later.
 3. **`allotment_runs` added** — an audit row per batch run. `swap_audit_log` is
    likewise in place for the Phase 2 swap flow.
+4. **`group_invites` added** for join-by-link. A partial unique index keeps at
+   most one *live* invite per email per group, so re-inviting someone replaces
+   the old link rather than leaving several valid at once.
 
 `group_members` carries a denormalised `semester` column, maintained by a
 trigger, purely so the "one group per student per semester" rule can be a real
@@ -188,8 +237,9 @@ unique index rather than an application check that races.
 ## Status
 
 **Phase 1 (MVP) is complete**: schema and seed data, student auth, group
-formation, preference ranking, the batch allotment job, result view, and the
-admin trigger page with occupancy and run history.
+formation with invite links, preference ranking, the batch allotment job,
+result view, the admin allotment queue, and the trigger page with occupancy and
+run history. The interface is a dark navy theme throughout.
 
 **Phase 2** — swap request queue with approve/reject, occupancy heatmap,
 allotment rollback per semester, and CSV/PDF export — is not built. The

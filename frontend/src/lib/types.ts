@@ -76,6 +76,8 @@ export type AllotmentSummary = {
 
 export type Occupancy = {
   semester: string;
+  /** Set when a caretaker is seeing only their own hostel. */
+  scopedToHostel?: string | null;
   totals: { totalRooms: number; allottedRooms: number; maintenanceRooms: number };
   breakdown: {
     hostel: string;
@@ -85,4 +87,52 @@ export type Occupancy = {
     allotted_rooms: number;
     maintenance_rooms: number;
   }[];
+};
+
+export type Invite = {
+  id: string;
+  email: string | null;
+  state: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  /** Only present while the invite is still pending. */
+  token?: string;
+  url?: string;
+};
+
+export type InvitePreview = {
+  state: Invite['state'];
+  email: string | null;
+  groupName: string | null;
+  semester: string;
+  invitedByName: string;
+  memberCount: number;
+  groupSize: number;
+  groupStatus: Group['status'];
+};
+
+export type AdminGroupRow = {
+  id: string;
+  name: string | null;
+  status: Group['status'];
+  avg_cgpa: number | null;
+  member_count: number;
+  preference_count: number;
+  lead_name: string | null;
+  lead_email: string | null;
+  hostel_name: string | null;
+  room_number: string | null;
+  matched_rank: number | null;
+  created_at: string;
+};
+
+export type AdminQueue = {
+  semester: string;
+  groups: AdminGroupRow[];
+  counts: { active: number; allotted: number; waitlist: number };
+  readyToAllot: number;
+  groupSize: number;
+  sort: string;
+  order: 'asc' | 'desc';
 };

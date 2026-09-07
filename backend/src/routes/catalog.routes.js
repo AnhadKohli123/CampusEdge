@@ -4,7 +4,7 @@ import { query } from '../db.js';
 import { validate } from '../middleware/validate.js';
 import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { notFound } from '../utils/errors.js';
+import { forbidden, notFound } from '../utils/errors.js';
 
 const router = Router();
 
@@ -67,6 +67,17 @@ router.patch(
   requireRole('admin', 'caretaker'),
   validate(statusSchema),
   asyncHandler(async (req, res) => {
+    // A caretaker looks after one hostel; they cannot flag rooms in another.
+    if (req.user.role === 'caretaker') {
+      const { rows: owner } = await query('SELECT hostel_id FROM rooms WHERE id = $1', [
+        req.params.id,
+      ]);
+      if (owner.length === 0) throw notFound('Room not found');
+      if (owner[0].hostel_id !== req.user.hostelId) {
+        throw forbidden('You can only change rooms in your own hostel');
+      }
+    }
+
     const { rows } = await query(
       `UPDATE rooms SET status = $2 WHERE id = $1
        RETURNING id, room_number, status, current_occupancy`,

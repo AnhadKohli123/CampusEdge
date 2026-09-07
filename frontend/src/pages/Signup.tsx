@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/Feedback';
@@ -18,6 +18,7 @@ export function Signup() {
 
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const redirectTo = (useLocation().state as { redirectTo?: string } | null)?.redirectTo;
 
   const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -38,7 +39,7 @@ export function Signup() {
         },
       });
       signIn({ kind: 'student', user: data.student }, data.token);
-      navigate('/group');
+      navigate(redirectTo ?? '/group');
     } catch (err) {
       setError(err);
     } finally {
@@ -49,7 +50,7 @@ export function Signup() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="mb-1 text-2xl font-semibold">Create your account</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <p className="mb-6 text-sm text-ink-400">
         Your CGPA decides your group&apos;s place in the allotment queue.
       </p>
 
@@ -74,7 +75,7 @@ export function Signup() {
             value={form.password}
             onChange={update('password')}
           />
-          <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
+          <p className="mt-1 text-xs text-ink-400">At least 8 characters.</p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -101,9 +102,13 @@ export function Signup() {
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-slate-500">
+      <p className="mt-4 text-center text-sm text-ink-400">
         Already registered?{' '}
-        <Link to="/login" className="font-medium text-brand-600 hover:underline">
+        <Link
+          to="/login"
+          state={redirectTo ? { redirectTo } : undefined}
+          className="font-medium text-accent-400 hover:underline"
+        >
           Sign in
         </Link>
       </p>

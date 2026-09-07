@@ -141,7 +141,7 @@ export function Preferences() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Rank your preferences</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-ink-400">
           Highest first. The batch job walks this list in order and takes the first
           room still free.
         </p>
@@ -172,7 +172,7 @@ export function Preferences() {
             Add
           </button>
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-400">
           Only {GROUP_SIZE}-capacity room types are listed — a group of {GROUP_SIZE} is
           allotted a room of exactly that size.
         </p>
@@ -181,7 +181,7 @@ export function Preferences() {
       <section className="card">
         <h2 className="mb-4 font-medium">Your ranking</h2>
         {choices.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">
+          <p className="py-6 text-center text-sm text-ink-400">
             No preferences yet. Add at least one.
           </p>
         ) : (
@@ -189,14 +189,14 @@ export function Preferences() {
             {choices.map((choice, index) => (
               <li
                 key={`${choice.hostelId}-${choice.roomTypeId}`}
-                className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2"
+                className="flex items-center gap-3 rounded-lg border border-navy-700 px-3 py-2"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-medium text-brand-700">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-500/15 text-sm font-medium text-accent-300">
                   {index + 1}
                 </span>
                 <span className="flex-1 text-sm">{choice.label}</span>
                 <button
-                  className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  className="rounded px-2 py-1 text-ink-400 hover:bg-navy-800 disabled:opacity-30"
                   onClick={() => move(index, -1)}
                   disabled={index === 0}
                   aria-label="Move up"
@@ -204,7 +204,7 @@ export function Preferences() {
                   ↑
                 </button>
                 <button
-                  className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  className="rounded px-2 py-1 text-ink-400 hover:bg-navy-800 disabled:opacity-30"
                   onClick={() => move(index, 1)}
                   disabled={index === choices.length - 1}
                   aria-label="Move down"
@@ -212,7 +212,7 @@ export function Preferences() {
                   ↓
                 </button>
                 <button
-                  className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                  className="rounded px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10"
                   onClick={() => remove(index)}
                 >
                   Remove
@@ -222,11 +222,11 @@ export function Preferences() {
           </ol>
         )}
 
-        <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-5">
+        <div className="mt-5 flex items-center gap-3 border-t border-navy-700/70 pt-5">
           <button className="btn-primary" onClick={save} disabled={busy || choices.length === 0}>
             {busy ? 'Saving…' : 'Save preferences'}
           </button>
-          {saved && <span className="text-sm text-green-700">Saved.</span>}
+          {saved && <span className="text-sm text-emerald-400">Saved.</span>}
         </div>
       </section>
     </div>

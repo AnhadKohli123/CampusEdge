@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EmptyState, ErrorBanner, Spinner, StatusPill } from '../components/Feedback';
+import { InvitePanel } from '../components/InvitePanel';
 import type { Group, Student } from '../lib/types';
 
 const GROUP_SIZE = 4;
@@ -121,7 +122,7 @@ export function GroupWizard() {
     return (
       <div className="mx-auto max-w-lg">
         <h1 className="mb-1 text-2xl font-semibold">Form your group</h1>
-        <p className="mb-6 text-sm text-slate-500">
+        <p className="mb-6 text-sm text-ink-400">
           Groups must have exactly {GROUP_SIZE} members to be allotted a room.
         </p>
         <form onSubmit={createGroup} className="card space-y-4">
@@ -139,7 +140,7 @@ export function GroupWizard() {
           <button className="btn-primary w-full" disabled={busy}>
             {busy ? 'Creating…' : 'Create group'}
           </button>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-400">
             You become the group lead and can add the other {GROUP_SIZE - 1} members.
           </p>
         </form>
@@ -152,14 +153,25 @@ export function GroupWizard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{group.name ?? 'Your group'}</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-ink-400">
             {group.semester} · average CGPA{' '}
-            <span className="font-medium text-slate-700">
+            <span className="font-medium text-ink-100">
               {group.avg_cgpa?.toFixed(2) ?? '—'}
             </span>
           </p>
         </div>
         <StatusPill status={group.status} />
+      </div>
+
+      <div className="flex items-center gap-2">
+        {Array.from({ length: GROUP_SIZE }, (_, i) => (
+          <span
+            key={i}
+            className={`h-2 flex-1 rounded-full ${
+              i < group.members.length ? 'bg-accent-500' : 'bg-navy-700'
+            }`}
+          />
+        ))}
       </div>
 
       <ErrorBanner error={error} />
@@ -168,7 +180,7 @@ export function GroupWizard() {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-medium">
             Members{' '}
-            <span className="text-slate-400">
+            <span className="text-ink-500">
               {group.members.length}/{GROUP_SIZE}
             </span>
           </h2>
@@ -179,27 +191,27 @@ export function GroupWizard() {
           )}
         </div>
 
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-navy-700/70">
           {group.members.map((member) => (
             <li key={member.id} className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium">
                   {member.name}
                   {member.id === group.group_lead_id && (
-                    <span className="ml-2 rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700">
+                    <span className="ml-2 rounded bg-accent-500/15 px-1.5 py-0.5 text-xs text-accent-300">
                       lead
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-slate-500">{member.email}</p>
+                <p className="text-xs text-ink-400">{member.email}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm tabular-nums text-slate-600">
+                <span className="text-sm tabular-nums text-ink-300">
                   {member.cgpa?.toFixed(2) ?? '—'}
                 </span>
                 {isLead && !isLocked && member.id !== group.group_lead_id && (
                   <button
-                    className="text-xs text-red-600 hover:underline"
+                    className="text-xs text-rose-400 hover:underline"
                     disabled={busy}
                     onClick={() => removeMember(member.id)}
                   >
@@ -212,7 +224,7 @@ export function GroupWizard() {
         </ul>
 
         {!isFull && isLead && (
-          <div className="mt-5 border-t border-slate-100 pt-5">
+          <div className="mt-5 border-t border-navy-700/70 pt-5">
             <label className="label" htmlFor="search">Add a member</label>
             <input
               id="search"
@@ -222,7 +234,7 @@ export function GroupWizard() {
               onChange={(e) => setSearch(e.target.value)}
             />
             {results.length > 0 && (
-              <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+              <ul className="mt-2 divide-y divide-navy-700/70 rounded-lg border border-navy-700">
                 {results
                   .filter((s) => !group.members.some((m) => m.id === s.id))
                   .map((student) => (
@@ -232,7 +244,7 @@ export function GroupWizard() {
                     >
                       <div>
                         <p className="text-sm">{student.name}</p>
-                        <p className="text-xs text-slate-500">{student.email}</p>
+                        <p className="text-xs text-ink-400">{student.email}</p>
                       </div>
                       <button
                         className="btn-secondary py-1"
@@ -249,11 +261,19 @@ export function GroupWizard() {
         )}
 
         {!isFull && !isLead && (
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-4 text-sm text-ink-400">
             Only the group lead can add or remove members.
           </p>
         )}
       </section>
+
+      {isLead && !isFull && !isLocked && (
+        <InvitePanel
+          groupId={group.id}
+          seatsFree={GROUP_SIZE - group.members.length}
+          onChanged={() => void load()}
+        />
+      )}
 
       {isLocked && (
         <EmptyState

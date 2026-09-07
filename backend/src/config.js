@@ -20,6 +20,8 @@ export const config = {
   jwtSecret: required('JWT_SECRET', 'dev-only-insecure-secret-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
   corsOrigin: process.env.CORS_ORIGIN ?? '*',
+  // Where the frontend lives -- invite links are built against this.
+  appBaseUrl: (process.env.APP_BASE_URL ?? 'http://localhost:5173').replace(/\/$/, ''),
 
   // Domain rules. Groups must be exactly this size to be allotted, and a group
   // may only take a room whose type capacity matches that size (see

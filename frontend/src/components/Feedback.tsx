@@ -4,10 +4,10 @@ export function ErrorBanner({ error }: { error: unknown }) {
   if (!error) return null;
   const err = error as ApiError;
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+    <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
       <p className="font-medium">{err.message ?? 'Something went wrong'}</p>
       {err.details && err.details.length > 0 && (
-        <ul className="mt-1 list-inside list-disc text-red-700">
+        <ul className="mt-1.5 list-inside list-disc text-rose-300/90">
           {err.details.map((detail, i) => (
             <li key={i}>
               {detail.field ? `${detail.field}: ` : ''}
@@ -21,28 +21,68 @@ export function ErrorBanner({ error }: { error: unknown }) {
 }
 
 export function Spinner({ label = 'Loading…' }: { label?: string }) {
-  return <p className="py-8 text-center text-sm text-slate-500">{label}</p>;
-}
-
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-      <p className="font-medium text-slate-700">{title}</p>
-      {hint && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
+    <div className="flex items-center justify-center gap-2.5 py-12 text-sm text-ink-400">
+      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-navy-600 border-t-accent-400" />
+      {label}
     </div>
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
-  const tone =
-    status === 'allotted'
-      ? 'bg-green-100 text-green-800'
-      : status === 'waitlist'
-        ? 'bg-amber-100 text-amber-800'
-        : 'bg-slate-100 text-slate-700';
+export function EmptyState({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${tone}`}>
+    <div className="rounded-2xl border border-dashed border-navy-600 bg-navy-850/40 px-6 py-12 text-center">
+      <p className="font-medium text-ink-100">{title}</p>
+      {hint && <p className="mx-auto mt-1.5 max-w-sm text-sm text-ink-400">{hint}</p>}
+      {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+const TONES: Record<string, string> = {
+  allotted: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25',
+  waitlist: 'bg-amber-500/15 text-amber-300 ring-amber-500/25',
+  active: 'bg-accent-500/15 text-accent-300 ring-accent-500/25',
+  pending: 'bg-accent-500/15 text-accent-300 ring-accent-500/25',
+  accepted: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25',
+  expired: 'bg-navy-700/60 text-ink-400 ring-navy-600',
+  revoked: 'bg-navy-700/60 text-ink-400 ring-navy-600',
+};
+
+export function StatusPill({ status }: { status: string }) {
+  const tone = TONES[status] ?? 'bg-navy-700/60 text-ink-300 ring-navy-600';
+  return (
+    <span className={`pill capitalize ring-1 ring-inset ${tone}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {status}
     </span>
+  );
+}
+
+/** Big number + caption, used across the admin screens. */
+export function Stat({
+  label,
+  value,
+  tone = 'text-ink-50',
+}: {
+  label: string;
+  value: number | string;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-navy-700/70 bg-navy-900/50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+        {label}
+      </p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</p>
+    </div>
   );
 }

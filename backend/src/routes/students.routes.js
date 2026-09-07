@@ -24,6 +24,7 @@ const updateSchema = z
 
 router.get(
   '/',
+  requireAuth,
   validate(listQuerySchema, 'query'),
   asyncHandler(async (req, res) => {
     const { search, limit, offset } = req.query;

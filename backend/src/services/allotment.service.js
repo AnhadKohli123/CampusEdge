@@ -241,8 +241,11 @@ export async function runAllotment({ semester, triggeredBy = null, maxAttempts =
   throw lastError;
 }
 
-/** Occupancy rollup used by the admin screen. */
-export async function getOccupancy(semester) {
+/**
+ * Occupancy rollup used by the admin screen. `hostelId` scopes the result to a
+ * single hostel, which is what a caretaker sees.
+ */
+export async function getOccupancy(semester, hostelId = null) {
   const { rows } = await pool.query(
     `SELECT h.name                         AS hostel,
             rt.name                        AS room_type,
@@ -254,9 +257,10 @@ export async function getOccupancy(semester) {
        JOIN hostels h     ON h.id = r.hostel_id
        JOIN room_types rt ON rt.id = r.room_type_id
        LEFT JOIN allotments a ON a.room_id = r.id AND a.semester = $1
+      WHERE ($2::uuid IS NULL OR r.hostel_id = $2)
       GROUP BY h.name, rt.name, rt.capacity
       ORDER BY h.name, rt.name`,
-    [semester]
+    [semester, hostelId]
   );
   return rows;
 }

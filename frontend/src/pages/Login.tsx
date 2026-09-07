@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/Feedback';
@@ -16,6 +16,8 @@ export function Login() {
 
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  // An invite link sends people here and expects them back afterwards.
+  const redirectTo = (useLocation().state as { redirectTo?: string } | null)?.redirectTo;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -28,14 +30,14 @@ export function Login() {
           { method: 'POST', body: { email, password } }
         );
         signIn({ kind: 'student', user: data.student }, data.token);
-        navigate('/group');
+        navigate(redirectTo ?? '/group');
       } else {
         const data = await api<{ admin: Admin; token: string }>('/auth/admin/login', {
           method: 'POST',
           body: { email, password },
         });
         signIn({ kind: 'staff', user: data.admin }, data.token);
-        navigate('/admin');
+        navigate(redirectTo ?? '/admin/groups');
       }
     } catch (err) {
       setError(err);
@@ -47,18 +49,18 @@ export function Login() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="mb-1 text-2xl font-semibold">Sign in</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <p className="mb-6 text-sm text-ink-400">
         Hostel allotment for the current semester.
       </p>
 
-      <div className="mb-4 inline-flex rounded-lg border border-slate-300 bg-white p-1">
+      <div className="mb-4 inline-flex rounded-lg border border-navy-600 bg-navy-850 p-1">
         {(['student', 'staff'] as Mode[]).map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => setMode(option)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize ${
-              mode === option ? 'bg-brand-600 text-white' : 'text-slate-600'
+              mode === option ? 'bg-accent-500 text-white' : 'text-ink-300'
             }`}
           >
             {option}
@@ -100,9 +102,13 @@ export function Login() {
       </form>
 
       {mode === 'student' && (
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-ink-400">
           New here?{' '}
-          <Link to="/signup" className="font-medium text-brand-600 hover:underline">
+          <Link
+            to="/signup"
+            state={redirectTo ? { redirectTo } : undefined}
+            className="font-medium text-accent-400 hover:underline"
+          >
             Create an account
           </Link>
         </p>
