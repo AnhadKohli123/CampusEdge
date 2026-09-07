@@ -66,7 +66,7 @@ router.get(
     const orderBy = `${SORT_COLUMNS[sort]} ${direction} NULLS LAST, g.created_at ASC`;
 
     const { rows } = await query(
-      `SELECT g.id, g.name, g.status, g.created_at,
+      `SELECT g.id, g.name, g.status, g.gender, g.created_at,
               m.member_count,
               m.avg_cgpa,
               p.preference_count,

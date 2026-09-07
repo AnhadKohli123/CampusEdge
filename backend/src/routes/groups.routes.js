@@ -28,10 +28,11 @@ async function recalcAvgCgpa(client, groupId) {
 
 async function loadGroup(groupId) {
   const { rows } = await query(
-    `SELECT g.id, g.name, g.group_lead_id, g.avg_cgpa, g.status, g.semester, g.created_at,
+    `SELECT g.id, g.name, g.group_lead_id, g.avg_cgpa, g.status, g.gender, g.semester, g.created_at,
             COALESCE(
               json_agg(
-                json_build_object('id', s.id, 'name', s.name, 'email', s.email, 'cgpa', s.cgpa)
+                json_build_object('id', s.id, 'name', s.name, 'email', s.email,
+                              'cgpa', s.cgpa, 'gender', s.gender)
                 ORDER BY s.name
               ) FILTER (WHERE s.id IS NOT NULL), '[]'
             ) AS members
@@ -69,6 +70,30 @@ async function assertMembershipOpen(group) {
   );
 }
 
+/**
+ * Hostels are single-gender buildings, so a group has to be single-gender too
+ * -- a mixed group could not be placed anywhere. Checked when a member is added
+ * and again when an invite is accepted.
+ */
+async function assertGenderMatches(client, groupGender, studentId) {
+  const { rows } = await client.query('SELECT gender FROM students WHERE id = $1', [
+    studentId,
+  ]);
+  if (rows.length === 0) throw notFound('Student not found');
+
+  const studentGender = rows[0].gender;
+  if (!studentGender) {
+    throw badRequest('That student has not set their gender yet');
+  }
+  if (groupGender && studentGender !== groupGender) {
+    throw badRequest(
+      `This is a ${groupGender === 'male' ? "boys'" : "girls'"} group; ` +
+        'hostels are single-gender so groups cannot be mixed'
+    );
+  }
+  return studentGender;
+}
+
 /** Staff see anything; a student sees only a group they belong to. */
 async function assertCanViewGroup(user, groupId) {
   if (!user) throw forbidden('Sign in to view a group');
@@ -84,7 +109,7 @@ async function assertCanViewGroup(user, groupId) {
 /** Throws unless the caller leads the group (admins bypass). */
 async function assertGroupLead(user, groupId) {
   const { rows } = await query(
-    'SELECT group_lead_id, status, semester FROM groups WHERE id = $1',
+    'SELECT group_lead_id, status, semester, gender FROM groups WHERE id = $1',
     [groupId]
   );
   if (rows.length === 0) throw notFound('Group not found');
@@ -116,15 +141,21 @@ router.post(
     }
 
     const group = await withTransaction(async (client) => {
+      // The lead sets the group's gender; everyone else must match it.
+      const leadGender = await assertGenderMatches(client, null, leadId);
+
       const { rows } = await client.query(
-        `INSERT INTO groups (name, group_lead_id, semester)
-         VALUES ($1, $2, $3)
+        `INSERT INTO groups (name, group_lead_id, gender, semester)
+         VALUES ($1, $2, $3, $4)
          RETURNING id`,
-        [name ?? null, leadId, semester]
+        [name ?? null, leadId, leadGender, semester]
       );
       const groupId = rows[0].id;
 
       for (const studentId of allMembers) {
+        if (studentId !== leadId) {
+          await assertGenderMatches(client, leadGender, studentId);
+        }
         await client.query(
           'INSERT INTO group_members (group_id, student_id) VALUES ($1, $2)',
           [groupId, studentId]
@@ -221,9 +252,11 @@ router.post(
   validate(addMemberSchema),
   asyncHandler(async (req, res) => {
     const groupId = req.params.id;
-    await assertMembershipOpen(await assertGroupLead(req.user, groupId));
+    const existing = await assertGroupLead(req.user, groupId);
+    await assertMembershipOpen(existing);
 
     const group = await withTransaction(async (client) => {
+      await assertGenderMatches(client, existing.gender, req.body.studentId);
       // Lock the group row so two concurrent invites cannot both see 3 members.
       await client.query('SELECT id FROM groups WHERE id = $1 FOR UPDATE', [groupId]);
 

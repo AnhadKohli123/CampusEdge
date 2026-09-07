@@ -32,10 +32,12 @@ export async function resetDb(pool) {
   await pool.query(`TRUNCATE ${TABLES.join(', ')} RESTART IDENTITY CASCADE`);
 }
 
-export async function makeHostel(pool, name, code) {
+/** Hostels default to boys' blocks; pass a gender for a girls' block. */
+export async function makeHostel(pool, name, code, gender = 'male') {
   const { rows } = await pool.query(
-    'INSERT INTO hostels (name, building_code) VALUES ($1, $2) RETURNING id, name',
-    [name, code]
+    `INSERT INTO hostels (name, building_code, gender) VALUES ($1, $2, $3)
+     RETURNING id, name, gender`,
+    [name, code, gender]
   );
   return rows[0];
 }
@@ -63,21 +65,25 @@ let studentSeq = 0;
  * Creates a group with one student per CGPA in `cgpas`, and preferences in the
  * order given as [hostel, roomType] pairs.
  */
-export async function makeGroup(pool, { name, semester, cgpas, prefs = [] }) {
+export async function makeGroup(
+  pool,
+  { name, semester, cgpas, prefs = [], gender = 'male' }
+) {
   const memberIds = [];
   for (const cgpa of cgpas) {
     studentSeq += 1;
     const { rows } = await pool.query(
-      `INSERT INTO students (email, name, cgpa)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [`s${studentSeq}@test.edu`, `Student ${studentSeq}`, cgpa]
+      `INSERT INTO students (email, name, cgpa, gender)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [`s${studentSeq}@test.edu`, `Student ${studentSeq}`, cgpa, gender]
     );
     memberIds.push(rows[0].id);
   }
 
   const { rows: groupRows } = await pool.query(
-    `INSERT INTO groups (name, group_lead_id, semester) VALUES ($1, $2, $3) RETURNING id`,
-    [name, memberIds[0], semester]
+    `INSERT INTO groups (name, group_lead_id, gender, semester)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [name, memberIds[0], gender, semester]
   );
   const groupId = groupRows[0].id;
 
@@ -96,7 +102,7 @@ export async function makeGroup(pool, { name, semester, cgpas, prefs = [] }) {
     );
   }
 
-  return { id: groupId, name, memberIds };
+  return { id: groupId, name, gender, memberIds };
 }
 
 export async function allotmentFor(pool, groupId, semester) {

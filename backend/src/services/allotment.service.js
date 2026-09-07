@@ -9,7 +9,7 @@ import { config } from '../config.js';
  * data always produces the same result.
  *
  * Matching rule: a group is only placed in a room whose room_type capacity
- * equals the group size. Rooms are handed to one group whole -- the brief's
+ * equals the group size, in a hostel of the group's own gender. Rooms are handed to one group whole -- the brief's
  * "empty rooms stay empty (no forced pairing)" -- so putting a 4-person group
  * in a 6-bed room would strand two beds, and a 2-bed room cannot hold them at
  * all. Rooms whose capacity has no matching group size simply go unallotted.
@@ -34,6 +34,7 @@ const ELIGIBLE_GROUPS_SQL = `
     SELECT g.id,
            g.name,
            g.semester,
+           g.gender,
            g.created_at,
            COUNT(gm.id)::int         AS member_count,
            ROUND(AVG(s.cgpa), 2)     AS avg_cgpa
@@ -64,6 +65,11 @@ const FIND_FREE_ROOM_SQL = `
      AND r.room_type_id = $2
      AND r.status = 'active'
      AND rt.capacity = $3
+     -- Hostels are single-gender buildings. This is the last line of defence:
+     -- the preferences API already refuses to store a mismatched choice, but
+     -- the algorithm must never place a group in the wrong building even if a
+     -- hostel is re-designated after preferences were submitted.
+     AND h.gender = $5
      AND NOT EXISTS (
            SELECT 1 FROM allotments a
             WHERE a.room_id = r.id AND a.semester = $4
@@ -99,6 +105,21 @@ async function allocateInTransaction(client, semester) {
   };
 
   for (const group of groups) {
+    // Without a gender there is no building to place them in.
+    if (!group.gender) {
+      await client.query(
+        `UPDATE groups SET status = 'waitlist', avg_cgpa = $2 WHERE id = $1`,
+        [group.id, group.avg_cgpa]
+      );
+      summary.waitlisted += 1;
+      summary.unplaced.push({
+        groupId: group.id,
+        name: group.name,
+        reason: 'group_gender_not_set',
+      });
+      continue;
+    }
+
     // Incomplete groups get no allocation, per the brief.
     if (group.member_count !== groupSize) {
       await client.query(
@@ -135,6 +156,7 @@ async function allocateInTransaction(client, semester) {
         pref.room_type_id,
         groupSize,
         semester,
+        group.gender,
       ]);
       if (rooms.length === 0) continue;
 
@@ -187,18 +209,25 @@ async function allocateInTransaction(client, semester) {
   }
 
   const { rows: capacityRows } = await client.query(
-    `SELECT COUNT(*)::int AS free_rooms
+    `SELECT h.gender, COUNT(*)::int AS free_rooms
        FROM rooms r
        JOIN room_types rt ON rt.id = r.room_type_id
+       JOIN hostels h     ON h.id = r.hostel_id
       WHERE r.status = 'active'
         AND rt.capacity = $2
         AND NOT EXISTS (
               SELECT 1 FROM allotments a
                WHERE a.room_id = r.id AND a.semester = $1
-            )`,
+            )
+      GROUP BY h.gender`,
     [semester, groupSize]
   );
-  summary.roomsStillFree = capacityRows[0].free_rooms;
+  // Reported per gender: 10 free rooms in the boys' hostels do nothing for a
+  // waitlisted girls' group, so a single total would be misleading.
+  summary.roomsStillFreeByGender = Object.fromEntries(
+    capacityRows.map((row) => [row.gender, row.free_rooms])
+  );
+  summary.roomsStillFree = capacityRows.reduce((n, row) => n + row.free_rooms, 0);
 
   return summary;
 }

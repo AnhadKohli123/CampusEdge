@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS students (
   password_hash VARCHAR(255),
   -- (4,2) not (3,2): DECIMAL(3,2) caps at 9.99 and overflows on a perfect 10.00
   cgpa          DECIMAL(4,2) CHECK (cgpa >= 0 AND cgpa <= 10),
+  -- Hostel buildings are single-gender, so allocation has to know this. The
+  -- column mirrors the physical buildings; it is nullable only so students can
+  -- be bulk imported from the registrar before it is filled in.
+  gender        VARCHAR(10) CHECK (gender IN ('male', 'female')),
   phone         VARCHAR(32),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -27,7 +31,10 @@ CREATE TABLE IF NOT EXISTS students (
 CREATE TABLE IF NOT EXISTS hostels (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name          VARCHAR(120) UNIQUE NOT NULL,
-  building_code VARCHAR(32) UNIQUE NOT NULL
+  building_code VARCHAR(32) UNIQUE NOT NULL,
+  -- Which students this building houses.
+  gender        VARCHAR(10) NOT NULL DEFAULT 'male'
+                CHECK (gender IN ('male', 'female'))
 );
 
 CREATE TABLE IF NOT EXISTS admins (
@@ -78,6 +85,9 @@ CREATE TABLE IF NOT EXISTS groups (
   avg_cgpa      DECIMAL(4,2),   -- see students.cgpa for why (4,2)
   status        VARCHAR(20) NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active', 'allotted', 'waitlist')),
+  -- Set from the lead when the group is created; every member must match, and
+  -- the group can only be placed in a hostel of the same gender.
+  gender        VARCHAR(10) CHECK (gender IN ('male', 'female')),
   semester      VARCHAR(32) NOT NULL,        -- e.g. "2024-Spring"
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -141,6 +151,11 @@ CREATE INDEX IF NOT EXISTS group_invites_group_idx ON group_invites (group_id);
 CREATE UNIQUE INDEX IF NOT EXISTS group_invites_live_email_idx
   ON group_invites (group_id, lower(email))
   WHERE accepted_at IS NULL AND revoked_at IS NULL AND email IS NOT NULL;
+
+-- Backfill for databases created before hostels became single-gender.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
+ALTER TABLE hostels  ADD COLUMN IF NOT EXISTS gender VARCHAR(10) NOT NULL DEFAULT 'male';
+ALTER TABLE groups   ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
 
 -- ---------------------------------------------------------------------------
 -- Preferences

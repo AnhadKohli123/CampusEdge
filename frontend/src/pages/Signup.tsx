@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/Feedback';
-import type { Student } from '../lib/types';
+import type { Gender, Student } from '../lib/types';
 
 export function Signup() {
   const [form, setForm] = useState({
@@ -13,6 +13,7 @@ export function Signup() {
     cgpa: '',
     phone: '',
   });
+  const [gender, setGender] = useState<Gender | ''>('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,6 +36,7 @@ export function Signup() {
           email: form.email,
           password: form.password,
           cgpa: Number(form.cgpa),
+          gender,
           ...(form.phone ? { phone: form.phone } : {}),
         },
       });
@@ -77,6 +79,30 @@ export function Signup() {
           />
           <p className="mt-1 text-xs text-ink-400">At least 8 characters.</p>
         </div>
+        <div>
+          <span className="label">Hostel block</span>
+          <div className="grid grid-cols-2 gap-3">
+            {(['male', 'female'] as Gender[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setGender(option)}
+                className={`btn ${
+                  gender === option
+                    ? 'bg-accent-500/15 text-accent-200 ring-1 ring-inset ring-accent-500/40'
+                    : 'border border-navy-600 bg-navy-800/70 text-ink-300 hover:bg-navy-700/70'
+                }`}
+              >
+                {option === 'male' ? "Boys' hostel" : "Girls' hostel"}
+              </button>
+            ))}
+          </div>
+          <p className="hint">
+            Hostel blocks are separate, so this decides which buildings you can be
+            allotted and who can be in your group.
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label" htmlFor="cgpa">CGPA</label>
@@ -97,7 +123,7 @@ export function Signup() {
             <input id="phone" className="input" value={form.phone} onChange={update('phone')} />
           </div>
         </div>
-        <button className="btn-primary w-full" disabled={busy}>
+        <button className="btn-primary w-full" disabled={busy || !gender}>
           {busy ? 'Creating…' : 'Create account'}
         </button>
       </form>

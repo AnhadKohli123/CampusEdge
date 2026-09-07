@@ -54,7 +54,7 @@ router.put(
     const { preferences } = req.body;
 
     const { rows: groupRows } = await query(
-      'SELECT group_lead_id, status, semester FROM groups WHERE id = $1',
+      'SELECT group_lead_id, status, semester, gender FROM groups WHERE id = $1',
       [groupId]
     );
     if (groupRows.length === 0) throw notFound('Group not found');
@@ -106,11 +106,22 @@ router.put(
 
     const hostelIds = [...new Set(preferences.map((p) => p.hostelId))];
     const { rows: hostels } = await query(
-      'SELECT id FROM hostels WHERE id = ANY($1::uuid[])',
+      'SELECT id, name, gender FROM hostels WHERE id = ANY($1::uuid[])',
       [hostelIds]
     );
     if (hostels.length !== hostelIds.length) {
       throw badRequest('One or more hostels do not exist');
+    }
+
+    // A hostel houses one gender, so ranking the other one could never match.
+    // Rejecting it here beats silently storing a preference that is dead on
+    // arrival at the batch job.
+    const wrongHostels = hostels.filter((h) => h.gender !== group.gender);
+    if (wrongHostels.length > 0) {
+      throw badRequest(
+        `Your group can only choose ${group.gender === 'male' ? "boys'" : "girls'"} hostels`,
+        wrongHostels.map((h) => ({ hostel: h.name, houses: h.gender }))
+      );
     }
 
     await withTransaction(async (client) => {

@@ -27,12 +27,18 @@ export function Preferences() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [groupData, hostelData, typeData] = await Promise.all([
-        api<{ group: Group | null }>('/groups/mine'),
-        api<{ hostels: Hostel[] }>('/catalog/hostels'),
+      const groupData = await api<{ group: Group | null }>('/groups/mine');
+      setGroup(groupData.group);
+
+      // Hostel blocks are single-gender, so only the group's own blocks are
+      // offered -- the API would reject the others anyway.
+      const hostelQuery = groupData.group?.gender
+        ? `?gender=${groupData.group.gender}`
+        : '';
+      const [hostelData, typeData] = await Promise.all([
+        api<{ hostels: Hostel[] }>(`/catalog/hostels${hostelQuery}`),
         api<{ roomTypes: RoomType[] }>('/catalog/room-types'),
       ]);
-      setGroup(groupData.group);
       setHostels(hostelData.hostels);
       // Only room types that can actually hold the group are offered, so a
       // student cannot rank something the algorithm would never match.
@@ -174,7 +180,8 @@ export function Preferences() {
         </div>
         <p className="text-xs text-ink-400">
           Only {GROUP_SIZE}-capacity room types are listed — a group of {GROUP_SIZE} is
-          allotted a room of exactly that size.
+          allotted a room of exactly that size. Hostels are limited to the{' '}
+          {group.gender === 'female' ? "girls'" : "boys'"} blocks.
         </p>
       </section>
 

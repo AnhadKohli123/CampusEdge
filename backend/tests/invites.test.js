@@ -52,10 +52,11 @@ async function request(path, { method = 'GET', token, body } = {}) {
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
-async function makeStudent(email, cgpa = 8.0) {
+async function makeStudent(email, cgpa = 8.0, gender = 'male') {
   const { rows } = await pool.query(
-    `INSERT INTO students (email, name, cgpa) VALUES ($1, $2, $3) RETURNING id, email`,
-    [email, email.split('@')[0], cgpa]
+    `INSERT INTO students (email, name, cgpa, gender) VALUES ($1, $2, $3, $4)
+     RETURNING id, email`,
+    [email, email.split('@')[0], cgpa, gender]
   );
   return { ...rows[0], token: signToken({ sub: rows[0].id, role: 'student' }) };
 }
@@ -228,6 +229,51 @@ test('a student already in a group for the semester cannot accept', { skip }, as
   });
   assert.equal(res.status, 400);
   assert.match(res.body.error, /already in a group/);
+});
+
+test('an invite cannot be used to join a group of another gender', { skip }, async () => {
+  const { group, leadToken } = await pairFixture(); // boys' group by default
+
+  const created = await request(`/api/groups/${group.id}/invites`, {
+    method: 'POST',
+    token: leadToken,
+    body: {},
+  });
+
+  const girl = await makeStudent('anika@test.edu', 8.5, 'female');
+  const rejected = await request(`/api/invites/${created.body.invite.token}/accept`, {
+    method: 'POST',
+    token: girl.token,
+  });
+
+  assert.equal(rejected.status, 403);
+  assert.match(rejected.body.error, /single-gender|boys'/);
+
+  const { rows } = await pool.query(
+    'SELECT COUNT(*)::int AS n FROM group_members WHERE group_id = $1',
+    [group.id]
+  );
+  assert.equal(rows[0].n, 2, 'the group is unchanged');
+});
+
+test('a student with no gender set cannot join a group', { skip }, async () => {
+  const { group, leadToken } = await pairFixture();
+  const created = await request(`/api/groups/${group.id}/invites`, {
+    method: 'POST',
+    token: leadToken,
+    body: {},
+  });
+
+  const { rows } = await pool.query(
+    `INSERT INTO students (email, name, cgpa) VALUES ('nogender@test.edu', 'No Gender', 8)
+     RETURNING id`
+  );
+  const res = await request(`/api/invites/${created.body.invite.token}/accept`, {
+    method: 'POST',
+    token: signToken({ sub: rows[0].id, role: 'student' }),
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /gender/);
 });
 
 // --- role split -------------------------------------------------------------

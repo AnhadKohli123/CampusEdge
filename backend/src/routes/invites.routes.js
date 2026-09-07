@@ -227,7 +227,7 @@ inviteRouter.post(
       if (new Date(invite.expires_at) < new Date()) throw conflict('That invite has expired');
 
       const { rows: studentRows } = await client.query(
-        'SELECT id, email FROM students WHERE id = $1',
+        'SELECT id, email, gender FROM students WHERE id = $1',
         [req.user.sub]
       );
       const student = studentRows[0];
@@ -239,13 +239,24 @@ inviteRouter.post(
       }
 
       const { rows: groupRows } = await client.query(
-        'SELECT id, status, semester FROM groups WHERE id = $1 FOR UPDATE',
+        'SELECT id, status, semester, gender FROM groups WHERE id = $1 FOR UPDATE',
         [invite.group_id]
       );
       const group = groupRows[0];
       if (!group) throw notFound('Group not found');
       if (group.status === 'allotted') {
         throw conflict('That group is already allotted; membership is locked');
+      }
+
+      // Hostels are single-gender, so a mixed group could not be placed.
+      if (!student.gender) {
+        throw badRequest('Set your gender on your profile before joining a group');
+      }
+      if (group.gender && student.gender !== group.gender) {
+        throw forbidden(
+          `This is a ${group.gender === 'male' ? "boys'" : "girls'"} group; ` +
+            'hostels are single-gender so groups cannot be mixed'
+        );
       }
 
       const { rows: counts } = await client.query(

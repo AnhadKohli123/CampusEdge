@@ -155,11 +155,23 @@ export function GroupWizard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{group.name ?? 'Your group'}</h1>
-          <p className="mt-1 text-sm text-ink-400">
-            {group.semester} · average CGPA{' '}
-            <span className="font-medium text-ink-100">
-              {group.avg_cgpa?.toFixed(2) ?? '—'}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-ink-400">
+            <span>{group.semester}</span>
+            <span aria-hidden>·</span>
+            <span>
+              average CGPA{' '}
+              <span className="font-medium text-ink-100">
+                {group.avg_cgpa?.toFixed(2) ?? '—'}
+              </span>
             </span>
+            {group.gender && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="pill bg-navy-700/60 text-ink-300 ring-1 ring-inset ring-navy-600">
+                  {group.gender === 'female' ? "Girls' hostel" : "Boys' hostel"}
+                </span>
+              </>
+            )}
           </p>
         </div>
         <StatusPill status={group.status} />
@@ -238,6 +250,9 @@ export function GroupWizard() {
             {results.length > 0 && (
               <ul className="mt-2 divide-y divide-navy-700/70 rounded-lg border border-navy-700">
                 {results
+                  // Blocks are single-gender, so a mixed group could not be
+                  // placed anywhere -- do not offer people who cannot join.
+                  .filter((s) => !group.gender || s.gender === group.gender)
                   .filter((s) => !group.members.some((m) => m.id === s.id))
                   .map((student) => (
                     <li

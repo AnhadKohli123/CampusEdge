@@ -1,8 +1,11 @@
+export type Gender = 'male' | 'female';
+
 export type Student = {
   id: string;
   email: string;
   name: string;
   cgpa: number | null;
+  gender: Gender | null;
   phone?: string | null;
 };
 
@@ -14,7 +17,12 @@ export type Admin = {
   hostel_id: string | null;
 };
 
-export type Hostel = { id: string; name: string; building_code: string };
+export type Hostel = {
+  id: string;
+  name: string;
+  building_code: string;
+  gender: Gender;
+};
 export type RoomType = { id: string; name: string; capacity: number };
 
 export type Group = {
@@ -24,8 +32,9 @@ export type Group = {
   avg_cgpa: number | null;
   /** 'submitted' is the masked value students see before results are out. */
   status: 'active' | 'allotted' | 'waitlist' | 'submitted';
+  gender: Gender | null;
   semester: string;
-  members: Pick<Student, 'id' | 'name' | 'email' | 'cgpa'>[];
+  members: Pick<Student, 'id' | 'name' | 'email' | 'cgpa' | 'gender'>[];
 };
 
 export type Preference = {
@@ -116,6 +125,7 @@ export type InvitePreview = {
 export type AdminGroupRow = {
   id: string;
   name: string | null;
+  gender: Gender | null;
   status: 'active' | 'allotted' | 'waitlist';
   avg_cgpa: number | null;
   member_count: number;

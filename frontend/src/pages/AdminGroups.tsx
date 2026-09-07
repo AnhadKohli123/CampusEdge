@@ -179,7 +179,14 @@ export function AdminGroups() {
                     <tr key={group.id} className="row-hover">
                       <td className="py-2.5 pr-2 tabular-nums text-ink-500">{index + 1}</td>
                       <td className="py-2.5 pr-4">
-                        <p className="font-medium text-ink-100">{group.name ?? 'Unnamed'}</p>
+                        <p className="flex items-center gap-2 font-medium text-ink-100">
+                          {group.name ?? 'Unnamed'}
+                          {group.gender && (
+                            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400 ring-1 ring-inset ring-navy-600">
+                              {group.gender === 'female' ? 'Girls' : 'Boys'}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-ink-500">
                           {group.lead_name ?? '—'}
                           {group.lead_email ? ` · ${group.lead_email}` : ''}

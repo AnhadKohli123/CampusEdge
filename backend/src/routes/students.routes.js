@@ -19,6 +19,7 @@ const updateSchema = z
     name: z.string().min(1).max(255).trim().optional(),
     cgpa: z.coerce.number().min(0).max(10).optional(),
     phone: z.string().max(32).trim().optional(),
+    gender: z.enum(['male', 'female']).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'No fields to update');
 
@@ -33,7 +34,8 @@ router.get(
     // CGPA drives the whole queue, so the directory only exposes it to staff.
     // A student searching for someone to add needs a name and an email.
     const { rows } = await query(
-      `SELECT id, email, name, ${isStaff ? 'cgpa' : 'NULL::numeric AS cgpa'}, phone, created_at
+      `SELECT id, email, name, gender,
+              ${isStaff ? 'cgpa' : 'NULL::numeric AS cgpa'}, phone, created_at
          FROM students
         WHERE ($1::text IS NULL OR name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')
         ORDER BY name ASC
@@ -49,7 +51,7 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const { rows } = await query(
-      'SELECT id, email, name, cgpa, phone, created_at FROM students WHERE id = $1',
+      'SELECT id, email, name, cgpa, gender, phone, created_at FROM students WHERE id = $1',
       [req.user.sub]
     );
     if (rows.length === 0) throw notFound('Student not found');
@@ -61,7 +63,7 @@ router.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const { rows } = await query(
-      'SELECT id, email, name, cgpa, phone, created_at FROM students WHERE id = $1',
+      'SELECT id, email, name, cgpa, gender, phone, created_at FROM students WHERE id = $1',
       [req.params.id]
     );
     if (rows.length === 0) throw notFound('Student not found');
@@ -79,15 +81,16 @@ router.patch(
     const isAdmin = req.user.role === 'admin';
     if (!isSelf && !isAdmin) throw forbidden('You can only update your own profile');
 
-    const { name, cgpa, phone } = req.body;
+    const { name, cgpa, phone, gender } = req.body;
     const { rows } = await query(
       `UPDATE students
-          SET name  = COALESCE($2, name),
-              cgpa  = COALESCE($3, cgpa),
-              phone = COALESCE($4, phone)
+          SET name   = COALESCE($2, name),
+              cgpa   = COALESCE($3, cgpa),
+              phone  = COALESCE($4, phone),
+              gender = COALESCE($5, gender)
         WHERE id = $1
-        RETURNING id, email, name, cgpa, phone, created_at`,
-      [req.params.id, name ?? null, cgpa ?? null, phone ?? null]
+        RETURNING id, email, name, cgpa, gender, phone, created_at`,
+      [req.params.id, name ?? null, cgpa ?? null, phone ?? null, gender ?? null]
     );
     if (rows.length === 0) throw notFound('Student not found');
     res.json({ student: rows[0] });

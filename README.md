@@ -44,6 +44,35 @@ serialization failures are retried automatically.
 **Semester-isolated.** Every allotment is scoped to a semester string, so the
 same physical room is allotted independently each term.
 
+### Boys' and girls' hostels are separate
+
+Hostel buildings house one gender, so the constraint runs through the whole
+model rather than being a display filter:
+
+- **Students** have a gender, required at signup — without it there is no
+  building to place them in.
+- **Hostels** are designated `male` or `female`. In the seed data, A and B are
+  boys' blocks and C and D girls' blocks, with room supply balanced at 18
+  capacity-4 rooms each so neither side is structurally disadvantaged.
+- **Groups** take their gender from the lead, and a member of another gender is
+  refused — when adding directly and when accepting an invite. A mixed group
+  could not be placed anywhere.
+- **Preferences** may only rank the group's own blocks; the preference screen is
+  only offered those hostels, and the API rejects the rest rather than storing a
+  choice that is dead on arrival.
+- **The batch job** filters on hostel gender as its own last line of defence, so
+  a group cannot land in the wrong building even if a hostel is re-designated
+  after preferences were taken.
+
+The two genders therefore compete only against their own room supply — a
+low-CGPA girls' group is never displaced by a high-CGPA boys' group — and free
+rooms are reported per gender in the run summary, since a spare boys' room is no
+use to a waitlisted girls' group.
+
+Only `male` and `female` exist, because that is what the physical buildings are.
+A student whose gender is unset is waitlisted with the reason
+`group_gender_not_set` rather than being placed somewhere arbitrary.
+
 ### Room sizing
 
 A group is only matched to a room whose **capacity equals the group size**.
@@ -101,6 +130,7 @@ Shaped to exercise every branch of the allotment rather than to look tidy:
 | 3 complete groups | never submitted preferences |
 | Preference lists | vary from 2 to 10 entries |
 | CGPA | normal curve around 7.6, clamped to 5.0–10.0 |
+| Gender | 101 boys / 99 girls, in 25 boys' and 24 girls' groups |
 
 Rooms are uneven by design — Hostel A is the premium block, Hostel D the budget
 one — so preferences genuinely compete instead of every hostel being
@@ -108,10 +138,10 @@ interchangeable. Popular types (AC, Premium, Balcony) are weighted to appear
 near the top of most preference lists, which is what makes the CGPA ranking
 decide anything.
 
-A run over this dataset places 24 groups, waitlists 16 and skips 9 as
-incomplete, matching preference ranks 1 through 5 across all five capacity-4
-room types and all four hostels — with rooms still free, because a group is
-never forced into a room it did not ask for.
+A run over this dataset places 30 groups, waitlists 10 and skips 9 as
+incomplete — symmetrically, 15 of 20 complete groups on each side — across all
+four hostels, with rooms still free because a group is never forced into a room
+it did not ask for.
 
 Seeded logins:
 
@@ -171,7 +201,7 @@ carry different roles; `/api/admin/*` requires `admin` or `caretaker`.
 | `DELETE` | `/api/groups/:id/members/:studentId` | lead | Remove a member |
 | `GET` | `/api/groups/:id/preferences` | — | Current ranking |
 | `PUT` | `/api/groups/:id/preferences` | lead | Replace ranking (array order = rank) |
-| `GET` | `/api/catalog/hostels` | — | Hostels |
+| `GET` | `/api/catalog/hostels` | — | Hostels (`?gender=` to filter) |
 | `GET` | `/api/catalog/room-types` | — | Room types |
 | `GET` | `/api/catalog/rooms` | — | Rooms, filterable |
 | `PATCH` | `/api/catalog/rooms/:id/status` | staff | Maintenance toggle |
@@ -278,6 +308,8 @@ already carries the address to send to.
   through an admin swap.
 - Rooms in `maintenance` or `reserved` are never allotted.
 - An invite is single-use, expires, and holds a seat while pending.
+- A group is single-gender, and can only rank and be placed in hostels of that
+  gender.
 - Results stay hidden from students until an admin publishes them.
 - A group's roster and preferences freeze once the batch has ranked it.
 - Only an admin can run the allotment; caretakers are scoped to one hostel.
@@ -298,10 +330,12 @@ The schema follows the original spec with three deliberate changes:
    and set a password later.
 3. **`allotment_runs` added** — an audit row per batch run. `swap_audit_log` is
    likewise in place for the Phase 2 swap flow.
-4. **`semester_settings` added** — one row per semester holding
+4. **`gender` added** to `students`, `hostels` and `groups`, since hostel
+   buildings are single-gender and allocation cannot be correct without it.
+5. **`semester_settings` added** — one row per semester holding
    `results_published_at`. Publication is a property of the semester, not of any
    individual allotment run, so re-running the batch does not re-expose results.
-5. **`group_invites` added** for join-by-link. A partial unique index keeps at
+6. **`group_invites` added** for join-by-link. A partial unique index keeps at
    most one *live* invite per email per group, so re-inviting someone replaces
    the old link rather than leaving several valid at once.
 

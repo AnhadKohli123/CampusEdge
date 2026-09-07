@@ -8,11 +8,21 @@ import { forbidden, notFound } from '../utils/errors.js';
 
 const router = Router();
 
+const hostelQuerySchema = z.object({
+  gender: z.enum(['male', 'female']).optional(),
+});
+
 router.get(
   '/hostels',
+  validate(hostelQuerySchema, 'query'),
   asyncHandler(async (req, res) => {
+    // The preference screen passes the group's gender so students are never
+    // offered a building they cannot be placed in.
     const { rows } = await query(
-      'SELECT id, name, building_code FROM hostels ORDER BY name ASC'
+      `SELECT id, name, building_code, gender FROM hostels
+        WHERE ($1::text IS NULL OR gender = $1)
+        ORDER BY name ASC`,
+      [req.query.gender ?? null]
     );
     res.json({ hostels: rows });
   })
@@ -41,7 +51,7 @@ router.get(
     const { hostelId, roomTypeId, status } = req.query;
     const { rows } = await query(
       `SELECT r.id, r.room_number, r.status, r.current_occupancy,
-              h.id AS hostel_id, h.name AS hostel_name,
+              h.id AS hostel_id, h.name AS hostel_name, h.gender AS hostel_gender,
               rt.id AS room_type_id, rt.name AS room_type_name, rt.capacity
          FROM rooms r
          JOIN hostels h     ON h.id = r.hostel_id

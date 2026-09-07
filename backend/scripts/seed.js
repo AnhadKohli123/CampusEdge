@@ -18,11 +18,13 @@ import { config } from '../src/config.js';
 // Reference data
 // ---------------------------------------------------------------------------
 
+// Two boys' blocks and two girls' blocks. Room supply is deliberately balanced
+// at 18 capacity-4 rooms each, so neither side is structurally disadvantaged.
 const HOSTELS = [
-  { name: 'Hostel A', code: 'HA' },
-  { name: 'Hostel B', code: 'HB' },
-  { name: 'Hostel C', code: 'HC' },
-  { name: 'Hostel D', code: 'HD' },
+  { name: 'Hostel A', code: 'HA', gender: 'male' },
+  { name: 'Hostel B', code: 'HB', gender: 'male' },
+  { name: 'Hostel C', code: 'HC', gender: 'female' },
+  { name: 'Hostel D', code: 'HD', gender: 'female' },
 ];
 
 const ROOM_TYPES = [
@@ -48,21 +50,25 @@ const ROOM_TYPES = [
  * the dataset, which is what produces a realistic waitlist.
  */
 const HOSTEL_ROOM_PLAN = {
+  // Boys' blocks
   HA: {
     'Single AC': 6, '2-seater AC': 6, '3-seater AC': 4,
-    '4-seater AC Premium': 4, '4-seater AC': 4, '4-seater Balcony': 2, '4-seater Non-AC': 1,
+    '4-seater AC Premium': 4, '4-seater AC': 3, '4-seater Balcony': 2,
   },
   HB: {
-    'Single AC': 3, 'Single Non-AC': 4, '2-seater AC': 4, '2-seater Non-AC': 4, '3-seater AC': 3,
+    'Single AC': 3, 'Single Non-AC': 4, '2-seater AC': 4, '2-seater Non-AC': 4,
+    '3-seater AC': 3,
     '4-seater AC': 3, '4-seater Non-AC': 4, '4-seater Corner': 2,
   },
+  // Girls' blocks
   HC: {
-    'Single Non-AC': 6, '2-seater Non-AC': 6, '3-seater Non-AC': 4,
-    '4-seater AC': 2, '4-seater Non-AC': 5, '4-seater Balcony': 1,
+    'Single AC': 4, 'Single Non-AC': 4, '2-seater AC': 5, '2-seater Non-AC': 4,
+    '3-seater AC': 4,
+    '4-seater AC': 3, '4-seater Non-AC': 4, '4-seater Balcony': 2,
   },
   HD: {
-    'Single Non-AC': 8, '2-seater Non-AC': 8, '3-seater Non-AC': 6,
-    '4-seater Non-AC': 6, '4-seater Corner': 2,
+    'Single Non-AC': 6, '2-seater Non-AC': 8, '3-seater Non-AC': 6,
+    '4-seater AC Premium': 2, '4-seater Non-AC': 5, '4-seater Corner': 2,
   },
 };
 
@@ -80,9 +86,9 @@ const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? 'admin12345';
 async function seedReferenceData(client) {
   for (const hostel of HOSTELS) {
     await client.query(
-      `INSERT INTO hostels (name, building_code) VALUES ($1, $2)
-       ON CONFLICT (name) DO NOTHING`,
-      [hostel.name, hostel.code]
+      `INSERT INTO hostels (name, building_code, gender) VALUES ($1, $2, $3)
+       ON CONFLICT (name) DO UPDATE SET gender = EXCLUDED.gender`,
+      [hostel.name, hostel.code, hostel.gender]
     );
   }
   for (const type of ROOM_TYPES) {
@@ -94,7 +100,7 @@ async function seedReferenceData(client) {
   }
 
   const { rows: hostels } = await client.query(
-    'SELECT id, name, building_code FROM hostels'
+    'SELECT id, name, building_code, gender FROM hostels'
   );
   const { rows: types } = await client.query('SELECT id, name FROM room_types');
   const typeByName = new Map(types.map((t) => [t.name, t]));
@@ -163,10 +169,13 @@ function mulberry32(seed) {
   };
 }
 
-const FIRST_NAMES = [
+const MALE_NAMES = [
   'Aarav', 'Vivaan', 'Aditya', 'Vihaan', 'Arjun', 'Sai', 'Reyansh', 'Krishna',
   'Ishaan', 'Kabir', 'Rohan', 'Dhruv', 'Yash', 'Aryan', 'Kunal', 'Nikhil',
   'Rahul', 'Siddharth', 'Karan', 'Manav',
+];
+
+const FEMALE_NAMES = [
   'Ananya', 'Diya', 'Aadhya', 'Ishita', 'Saanvi', 'Myra', 'Aarohi', 'Anika',
   'Navya', 'Riya', 'Meera', 'Kavya', 'Tara', 'Nitya', 'Sneha', 'Pooja',
   'Rhea', 'Trisha', 'Neha', 'Shreya',
@@ -194,28 +203,29 @@ function sampleCgpa(random) {
 
 const pick = (random, list) => list[Math.floor(random() * list.length)];
 
-async function insertStudent(client, random, seq, passwordHash) {
-  const first = pick(random, FIRST_NAMES);
+async function insertStudent(client, random, seq, passwordHash, gender) {
+  const first = pick(random, gender === 'male' ? MALE_NAMES : FEMALE_NAMES);
   const last = pick(random, LAST_NAMES);
   // The sequence number keeps the email unique when a name repeats.
   const email = `${first}.${last}${seq}@campusedge.edu`.toLowerCase();
   const { rows } = await client.query(
-    `INSERT INTO students (email, name, password_hash, cgpa, phone)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (email) DO UPDATE SET cgpa = EXCLUDED.cgpa
+    `INSERT INTO students (email, name, password_hash, cgpa, gender, phone)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (email) DO UPDATE SET cgpa = EXCLUDED.cgpa, gender = EXCLUDED.gender
      RETURNING id`,
     [
       email,
       `${first} ${last}`,
       passwordHash,
       sampleCgpa(random),
+      gender,
       `9${String(800000000 + seq * 137).slice(0, 9)}`,
     ]
   );
   return rows[0].id;
 }
 
-async function createGroup(client, { name, semester, memberIds, preferences }) {
+async function createGroup(client, { name, semester, gender, memberIds, preferences }) {
   const { rows: existing } = await client.query(
     'SELECT id FROM groups WHERE name = $1 AND semester = $2',
     [name, semester]
@@ -223,8 +233,9 @@ async function createGroup(client, { name, semester, memberIds, preferences }) {
   if (existing.length > 0) return null;
 
   const { rows } = await client.query(
-    `INSERT INTO groups (name, group_lead_id, semester) VALUES ($1, $2, $3) RETURNING id`,
-    [name, memberIds[0], semester]
+    `INSERT INTO groups (name, group_lead_id, gender, semester)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [name, memberIds[0], gender, semester]
   );
   const groupId = rows[0].id;
 
@@ -263,11 +274,17 @@ async function seedDataset(client) {
   const random = mulberry32(20240215);
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
-  const { rows: hostels } = await client.query('SELECT id, name FROM hostels ORDER BY name');
+  const { rows: hostels } = await client.query(
+    'SELECT id, name, gender FROM hostels ORDER BY name'
+  );
   const { rows: allottable } = await client.query(
     'SELECT id, name FROM room_types WHERE capacity = $1 ORDER BY name',
     [config.groupSize]
   );
+  const hostelsByGender = {
+    male: hostels.filter((h) => h.gender === 'male'),
+    female: hostels.filter((h) => h.gender === 'female'),
+  };
 
   // Everyone wants AC and a balcony, so those appear near the top of most
   // lists. Scarcity then resolves by CGPA, which is the whole point.
@@ -282,13 +299,16 @@ async function seedDataset(client) {
     Array.from({ length: POPULARITY[type.name] ?? 1 }, () => type)
   );
 
-  function buildPreferences(count) {
+  // Only the group's own blocks -- a girls' group ranking a boys' hostel would
+  // be rejected by the API, so the dataset must not contain one.
+  function buildPreferences(count, gender) {
+    const options = hostelsByGender[gender];
     const seen = new Set();
     const list = [];
     let guard = 0;
     while (list.length < count && guard < 200) {
       guard += 1;
-      const hostel = pick(random, hostels);
+      const hostel = pick(random, options);
       const roomType = pick(random, weightedTypes);
       const key = `${hostel.id}:${roomType.id}`;
       if (seen.has(key)) continue;
@@ -321,11 +341,19 @@ async function seedDataset(client) {
   let groupsCreated = 0;
   let withoutPreferences = 0;
 
+  let maleGroups = 0;
+  let femaleGroups = 0;
+
   for (const [index, size] of PLAN.entries()) {
+    // Alternate so the cohort is close to evenly split.
+    const gender = index % 2 === 0 ? 'male' : 'female';
+    if (gender === 'male') maleGroups += 1;
+    else femaleGroups += 1;
+
     const memberIds = [];
     for (let i = 0; i < size; i += 1) {
       seq += 1;
-      memberIds.push(await insertStudent(client, random, seq, passwordHash));
+      memberIds.push(await insertStudent(client, random, seq, passwordHash, gender));
       studentsCreated += 1;
     }
 
@@ -340,8 +368,9 @@ async function seedDataset(client) {
     const created = await createGroup(client, {
       name: `Team ${TEAM_WORDS[index % TEAM_WORDS.length]}`,
       semester,
+      gender,
       memberIds,
-      preferences: buildPreferences(count),
+      preferences: buildPreferences(count, gender),
     });
     if (created) groupsCreated += 1;
   }
@@ -350,7 +379,7 @@ async function seedDataset(client) {
   let ungrouped = 0;
   while (studentsCreated < 200) {
     seq += 1;
-    await insertStudent(client, random, seq, passwordHash);
+    await insertStudent(client, random, seq, passwordHash, ungrouped % 2 ? 'male' : 'female');
     studentsCreated += 1;
     ungrouped += 1;
   }
@@ -367,6 +396,8 @@ async function seedDataset(client) {
     undersizedGroups: PLAN.filter((n) => n !== config.groupSize).length,
     withoutPreferences,
     ungrouped,
+    maleGroups,
+    femaleGroups,
     sampleLogin: firstStudent[0]?.email,
   };
 }
@@ -377,7 +408,9 @@ async function seedDemoData(client) {
   const random = mulberry32(7);
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
-  const { rows: hostels } = await client.query('SELECT id, name FROM hostels ORDER BY name');
+  const { rows: hostels } = await client.query(
+    'SELECT id, name, gender FROM hostels ORDER BY name'
+  );
   const { rows: fourSeaters } = await client.query(
     'SELECT id, name FROM room_types WHERE capacity = $1 ORDER BY name',
     [config.groupSize]
@@ -395,19 +428,24 @@ async function seedDemoData(client) {
   let seq = 0;
   let created = 0;
   for (const [groupIndex, spec] of demoGroups.entries()) {
+    const gender = groupIndex % 2 === 0 ? 'male' : 'female';
+    const names = gender === 'male' ? MALE_NAMES : FEMALE_NAMES;
+    const ownHostels = hostels.filter((h) => h.gender === gender);
+
     const memberIds = [];
     for (const cgpa of spec.cgpas) {
       seq += 1;
       const { rows } = await client.query(
-        `INSERT INTO students (email, name, password_hash, cgpa, phone)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (email) DO UPDATE SET cgpa = EXCLUDED.cgpa
+        `INSERT INTO students (email, name, password_hash, cgpa, gender, phone)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (email) DO UPDATE SET cgpa = EXCLUDED.cgpa, gender = EXCLUDED.gender
          RETURNING id`,
         [
           `student${seq}@campusedge.edu`,
-          `${pick(random, FIRST_NAMES)} ${pick(random, LAST_NAMES)}`,
+          `${pick(random, names)} ${pick(random, LAST_NAMES)}`,
           passwordHash,
           cgpa,
+          gender,
           `98000000${String(seq).padStart(2, '0')}`,
         ]
       );
@@ -415,8 +453,8 @@ async function seedDemoData(client) {
     }
 
     const preferences = [];
-    for (let h = 0; h < hostels.length; h += 1) {
-      const hostel = hostels[(groupIndex + h) % hostels.length];
+    for (let h = 0; h < ownHostels.length; h += 1) {
+      const hostel = ownHostels[(groupIndex + h) % ownHostels.length];
       for (const roomType of fourSeaters) {
         preferences.push({ hostelId: hostel.id, roomTypeId: roomType.id });
       }
@@ -425,6 +463,7 @@ async function seedDemoData(client) {
     const id = await createGroup(client, {
       name: spec.name,
       semester,
+      gender,
       memberIds,
       preferences,
     });
@@ -454,6 +493,9 @@ async function run() {
     console.log(
       `[seed]   ${data.completeGroups} complete, ${data.undersizedGroups} undersized, ` +
         `${data.withoutPreferences} without preferences, ${data.ungrouped} ungrouped`
+    );
+    console.log(
+      `[seed]   ${data.maleGroups} boys' groups, ${data.femaleGroups} girls' groups`
     );
     console.log(`[seed]   student login: ${data.sampleLogin} / ${DEMO_PASSWORD}`);
   } else if (wantsDemo) {
