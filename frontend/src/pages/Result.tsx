@@ -67,7 +67,7 @@ export function Result() {
 
       {!data.group ? (
         <div className="card space-y-5 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-navy-800 text-ink-400 ring-1 ring-inset ring-navy-700">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-navy-800 text-ink-400 ring-1 ring-inset ring-navy-700">
             <UsersIcon />
           </div>
           <p className="text-ink-200">{data.message}</p>
@@ -78,8 +78,8 @@ export function Result() {
            does not send it, so there is nothing to accidentally render. */
         <div className="card space-y-6 text-center">
           <div className="relative mx-auto flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 animate-ping rounded-2xl bg-accent-500/10" />
-            <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/25">
+            <span className="absolute inset-0 animate-ping rounded-lg bg-accent-500/10" />
+            <span className="relative flex h-16 w-16 items-center justify-center rounded-lg bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/25">
               <ClockIcon className="h-6 w-6" />
             </span>
           </div>
@@ -108,7 +108,7 @@ export function Result() {
           {/* Celebratory band -- this is the one screen that earns it. */}
           <div className="-mx-6 -mt-6 mb-6 bg-gradient-to-br from-accent-600/25 via-accent-500/10 to-transparent px-6 py-7">
             <div className="flex items-center gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-glow">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-glow">
                 <KeyIcon className="h-5 w-5" />
               </span>
               <div className="min-w-0">

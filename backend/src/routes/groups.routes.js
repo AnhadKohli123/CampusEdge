@@ -123,7 +123,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(120).trim().optional(),
   semester: z.string().min(1).max(32).trim().default(config.currentSemester),
   // Optional: seed the group with members at creation time.
-  memberIds: z.array(z.string().uuid()).max(config.groupSize).optional(),
+  memberIds: z.array(z.string().uuid()).max(config.maxGroupSize).optional(),
 });
 
 router.post(
@@ -136,8 +136,8 @@ router.post(
 
     // The lead is always a member; de-duplicate if they also listed themselves.
     const allMembers = [...new Set([leadId, ...memberIds])];
-    if (allMembers.length > config.groupSize) {
-      throw badRequest(`A group may have at most ${config.groupSize} members`);
+    if (allMembers.length > config.maxGroupSize) {
+      throw badRequest(`A group may have at most ${config.maxGroupSize} members`);
     }
 
     const group = await withTransaction(async (client) => {
@@ -264,8 +264,8 @@ router.post(
         'SELECT COUNT(*)::int AS n FROM group_members WHERE group_id = $1',
         [groupId]
       );
-      if (countRows[0].n >= config.groupSize) {
-        throw conflict(`Group is already full (${config.groupSize} members)`);
+      if (countRows[0].n >= config.maxGroupSize) {
+        throw conflict(`Group is already full (${config.maxGroupSize} members)`);
       }
 
       await client.query(

@@ -25,7 +25,7 @@ export function AuthLayout({
       {/* Brand panel */}
       <aside className="hidden animate-fade-up lg:block">
         <Link to="/" className="inline-flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 text-lg font-bold text-white shadow-glow">
+          <span className="flex h-11 w-11 items-center justify-center rounded-md bg-gradient-to-br from-accent-400 to-accent-600 text-lg font-bold text-white shadow-glow">
             C
           </span>
           <span className="text-xl font-semibold tracking-tight text-ink-50">

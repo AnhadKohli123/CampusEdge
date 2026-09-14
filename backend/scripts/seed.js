@@ -277,10 +277,16 @@ async function seedDataset(client) {
   const { rows: hostels } = await client.query(
     'SELECT id, name, gender FROM hostels ORDER BY name'
   );
-  const { rows: allottable } = await client.query(
-    'SELECT id, name FROM room_types WHERE capacity = $1 ORDER BY name',
-    [config.groupSize]
+  // Every capacity is allottable now: a pair takes a 2-seater, a trio a
+  // 3-seater, a lone student a single.
+  const { rows: allRoomTypes } = await client.query(
+    'SELECT id, name, capacity FROM room_types ORDER BY capacity, name'
   );
+  const typesByCapacity = new Map();
+  for (const type of allRoomTypes) {
+    if (!typesByCapacity.has(type.capacity)) typesByCapacity.set(type.capacity, []);
+    typesByCapacity.get(type.capacity).push(type);
+  }
   const hostelsByGender = {
     male: hostels.filter((h) => h.gender === 'male'),
     female: hostels.filter((h) => h.gender === 'female'),
@@ -288,28 +294,43 @@ async function seedDataset(client) {
 
   // Everyone wants AC and a balcony, so those appear near the top of most
   // lists. Scarcity then resolves by CGPA, which is the whole point.
+  // Everyone wants AC, so AC types appear more often near the top of a list.
   const POPULARITY = {
     '4-seater AC Premium': 5,
     '4-seater Balcony': 4,
     '4-seater AC': 4,
     '4-seater Corner': 2,
     '4-seater Non-AC': 1,
+    '3-seater AC': 4,
+    '3-seater Non-AC': 1,
+    '2-seater AC': 4,
+    '2-seater Non-AC': 1,
+    'Single AC': 4,
+    'Single Non-AC': 1,
   };
-  const weightedTypes = allottable.flatMap((type) =>
-    Array.from({ length: POPULARITY[type.name] ?? 1 }, () => type)
+  const weightedByCapacity = new Map(
+    [...typesByCapacity].map(([capacity, types]) => [
+      capacity,
+      types.flatMap((type) =>
+        Array.from({ length: POPULARITY[type.name] ?? 1 }, () => type)
+      ),
+    ])
   );
 
   // Only the group's own blocks -- a girls' group ranking a boys' hostel would
   // be rejected by the API, so the dataset must not contain one.
-  function buildPreferences(count, gender) {
+  /** Preferences for a group of `size`: only rooms that actually fit it. */
+  function buildPreferences(count, gender, size) {
     const options = hostelsByGender[gender];
+    const roomOptions = weightedByCapacity.get(size) ?? [];
+    if (roomOptions.length === 0) return [];
     const seen = new Set();
     const list = [];
     let guard = 0;
     while (list.length < count && guard < 200) {
       guard += 1;
       const hostel = pick(random, options);
-      const roomType = pick(random, weightedTypes);
+      const roomType = pick(random, roomOptions);
       const key = `${hostel.id}:${roomType.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -357,8 +378,8 @@ async function seedDataset(client) {
       studentsCreated += 1;
     }
 
-    // Three complete groups never get round to submitting preferences.
-    const skipPreferences = size === config.groupSize && index % 13 === 5;
+    // A few groups never get round to submitting preferences.
+    const skipPreferences = index % 13 === 5;
     if (skipPreferences) withoutPreferences += 1;
 
     // Preference lists vary from a narrow 2 to a thorough 10; a short list is
@@ -370,7 +391,7 @@ async function seedDataset(client) {
       semester,
       gender,
       memberIds,
-      preferences: buildPreferences(count, gender),
+      preferences: buildPreferences(count, gender, size),
     });
     if (created) groupsCreated += 1;
   }
@@ -392,8 +413,7 @@ async function seedDataset(client) {
     semester,
     students: studentsCreated,
     groups: groupsCreated,
-    completeGroups: PLAN.filter((n) => n === config.groupSize).length,
-    undersizedGroups: PLAN.filter((n) => n !== config.groupSize).length,
+    groupsBySize: PLAN.reduce((acc, n) => ({ ...acc, [n]: (acc[n] ?? 0) + 1 }), {}),
     withoutPreferences,
     ungrouped,
     maleGroups,
@@ -413,7 +433,7 @@ async function seedDemoData(client) {
   );
   const { rows: fourSeaters } = await client.query(
     'SELECT id, name FROM room_types WHERE capacity = $1 ORDER BY name',
-    [config.groupSize]
+    [config.maxGroupSize]
   );
 
   const demoGroups = [
@@ -491,8 +511,11 @@ async function run() {
       `[seed] dataset: ${data.students} students, ${data.groups} groups for ${data.semester}`
     );
     console.log(
-      `[seed]   ${data.completeGroups} complete, ${data.undersizedGroups} undersized, ` +
-        `${data.withoutPreferences} without preferences, ${data.ungrouped} ungrouped`
+      `[seed]   sizes: ` +
+        Object.entries(data.groupsBySize)
+          .map(([size, n]) => `${n}x${size}-person`)
+          .join(', ') +
+        `, ${data.withoutPreferences} without preferences, ${data.ungrouped} ungrouped`
     );
     console.log(
       `[seed]   ${data.maleGroups} boys' groups, ${data.femaleGroups} girls' groups`

@@ -228,9 +228,9 @@ test('boys and girls compete only against their own room supply', { skip }, asyn
     'a low-CGPA girls’ group is not beaten by a high-CGPA boys’ group'
   );
 
-  // Free rooms are reported per gender, since a spare boys' room is no use to
-  // a waitlisted girls' group.
-  assert.deepEqual(summary.roomsStillFreeByGender, { male: 1 });
+  // Free rooms are reported per gender and capacity, since a spare boys' room
+  // is no use to a waitlisted girls' group.
+  assert.deepEqual(summary.freeRooms, [{ gender: 'male', capacity: 4, rooms: 1 }]);
 });
 
 test('a group with no gender is waitlisted with a reason', { skip }, async () => {

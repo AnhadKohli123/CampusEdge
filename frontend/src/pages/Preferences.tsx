@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useToast } from '../components/Toast';
-import { EmptyState, ErrorBanner, SeatMeter, Spinner } from '../components/Feedback';
+import { EmptyState, ErrorBanner, Spinner } from '../components/Feedback';
 import { Stepper } from '../components/Stepper';
 import {
   ArrowDownIcon,
@@ -13,8 +13,6 @@ import {
   TrashIcon,
 } from '../components/Icons';
 import type { Group, Hostel, Preference, RoomType } from '../lib/types';
-
-const GROUP_SIZE = 4;
 
 type Choice = { hostelId: string; roomTypeId: string; hostel: string; roomType: string };
 
@@ -57,9 +55,10 @@ export function Preferences() {
         api<{ roomTypes: RoomType[] }>('/catalog/room-types'),
       ]);
       setHostels(hostelData.hostels);
-      // Only room types that can hold the group are offered, so a student
-      // cannot rank something the algorithm would never match.
-      setRoomTypes(typeData.roomTypes.filter((t) => t.capacity === GROUP_SIZE));
+      // Only room types that fit the group's *current* size are offered -- a
+      // pair cannot usefully rank a 4-seater, and the API rejects it anyway.
+      const size = groupData.group?.members.length ?? 0;
+      setRoomTypes(typeData.roomTypes.filter((t) => t.capacity === size));
 
       if (groupData.group) {
         const prefData = await api<{ preferences: Preference[] }>(
@@ -161,14 +160,14 @@ export function Preferences() {
     );
   }
 
-  const full = group.members.length >= GROUP_SIZE;
+  const size = group.members.length;
 
   return (
     <div className="mx-auto max-w-2xl">
       <Stepper
         current={1}
         steps={[
-          { to: '/group', label: 'Form group', done: full },
+          { to: '/group', label: 'Form group', done: size > 0 },
           { to: '/preferences', label: 'Rank preferences', done: saved.length > 0 },
           { to: '/result', label: 'Result', done: false },
         ]}
@@ -184,20 +183,14 @@ export function Preferences() {
         </p>
       </div>
 
-      {!full && (
-        <div className="mb-6 flex items-center gap-4 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-amber-200">
-              Your group has {group.members.length} of {GROUP_SIZE} members
-            </p>
-            <p className="mt-1 text-xs text-amber-300/80">
-              You can rank now, but only full groups are allotted a room.
-            </p>
-            <div className="mt-2">
-              <SeatMeter filled={group.members.length} total={GROUP_SIZE} />
-            </div>
-          </div>
-          <Link to="/group" className="btn-secondary btn-sm shrink-0">Invite</Link>
+      {size === 0 && (
+        <div className="mb-6 rounded-md border border-amber-500/25 bg-amber-500/10 px-4 py-3">
+          <p className="text-sm font-medium text-amber-200">
+            Your group has no members yet
+          </p>
+          <p className="mt-1 text-xs text-amber-300/80">
+            Add at least one before ranking rooms.
+          </p>
         </div>
       )}
 
@@ -238,9 +231,11 @@ export function Preferences() {
             </button>
           </div>
           <p className="hint">
-            Only {GROUP_SIZE}-seater types are listed, in the{' '}
-            {group.gender === 'female' ? "girls'" : "boys'"} blocks — a group of{' '}
-            {GROUP_SIZE} is allotted a room of exactly that size.
+            Your group has {size} member{size === 1 ? '' : 's'}, so only{' '}
+            {size === 1 ? 'single' : `${size}-seater`} rooms in the{' '}
+            {group.gender === 'female' ? "girls'" : "boys'"} blocks are listed — a
+            group is allotted a room of exactly its own size. Change the group and
+            this list changes with it.
           </p>
         </section>
 
@@ -272,7 +267,7 @@ export function Preferences() {
                     setDragIndex(null);
                     setOverIndex(null);
                   }}
-                  className={`flex cursor-grab items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-150 active:cursor-grabbing ${
+                  className={`flex cursor-grab items-center gap-3 rounded-md border px-3 py-2.5 transition-all duration-150 active:cursor-grabbing ${
                     dragIndex === index
                       ? 'border-accent-500/50 bg-accent-500/10 opacity-60'
                       : overIndex === index && dragIndex !== null

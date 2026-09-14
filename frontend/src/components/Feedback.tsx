@@ -1,12 +1,49 @@
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ApiError } from '../lib/api';
 import { AlertIcon } from './Icons';
+
+/**
+ * Counts from 0 to `value` once on mount and again whenever it changes, on an
+ * ease-out curve. Numbers that animate in make a dashboard feel live rather
+ * than printed. Respects prefers-reduced-motion by snapping straight there.
+ */
+function useCountUp(value: number, duration = 650) {
+  const [display, setDisplay] = useState(value);
+  const from = useRef(value);
+
+  useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || from.current === value) {
+      setDisplay(value);
+      from.current = value;
+      return;
+    }
+
+    const start = performance.now();
+    const origin = from.current;
+    let frame = 0;
+
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(origin + (value - origin) * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+      else from.current = value;
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+
+  return display;
+}
 
 export function ErrorBanner({ error }: { error: unknown }) {
   if (!error) return null;
   const err = error as ApiError;
   return (
-    <div className="flex animate-fade-in items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+    <div className="flex animate-fade-in items-start gap-3 rounded-md border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
       <span className="mt-0.5 text-rose-400">
         <AlertIcon />
       </span>
@@ -80,9 +117,9 @@ export function EmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="animate-fade-in rounded-2xl border border-dashed border-navy-600/80 bg-navy-850/30 px-6 py-12 text-center">
+    <div className="animate-fade-in rounded-lg border border-dashed border-navy-600/80 bg-navy-850/30 px-6 py-12 text-center">
       {icon && (
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-navy-800/80 text-ink-400 ring-1 ring-inset ring-navy-700">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-navy-800/80 text-ink-400 ring-1 ring-inset ring-navy-700">
           {icon}
         </div>
       )}
@@ -132,14 +169,21 @@ export function Stat({
   tone?: string;
   icon?: ReactNode;
 }) {
+  const numeric = typeof value === 'number';
+  const counted = useCountUp(numeric ? value : 0);
+
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-navy-700/70 bg-navy-900/40 px-4 py-3.5 transition-colors hover:border-navy-600">
+    <div className="tile group">
       <div className="flex items-start justify-between gap-2">
         <p className="eyebrow">{label}</p>
-        {icon && <span className="text-ink-600 opacity-50">{icon}</span>}
+        {icon && (
+          <span className="text-ink-600 opacity-40 transition-opacity group-hover:opacity-70">
+            {icon}
+          </span>
+        )}
       </div>
       <p className={`mt-1.5 text-2xl font-semibold tabular-nums tracking-tight ${tone}`}>
-        {value}
+        {numeric ? counted : value}
       </p>
     </div>
   );
@@ -152,8 +196,8 @@ export function SeatMeter({ filled, total }: { filled: number; total: number }) 
       {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
-          className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-            i < filled ? 'bg-accent-500' : 'bg-navy-700'
+          className={`h-2 flex-1 rounded-sm transition-all duration-300 ${
+            i < filled ? 'bg-accent-500 shadow-[0_0_12px_-2px_rgba(77,141,255,.8)]' : 'bg-navy-700'
           }`}
         />
       ))}

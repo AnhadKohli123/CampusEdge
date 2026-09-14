@@ -113,31 +113,69 @@ test('falls through to the next preference when the first is full', { skip }, as
   assert.deepEqual(summary.byPreferenceRank, { 1: 1, 2: 1 });
 });
 
-test('incomplete groups get no allocation', { skip }, async () => {
-  const { hostelA, fourSeater } = await tinyInventory();
-  await makeRoom(pool, hostelA, fourSeater, 'HA-101');
+test('a group smaller than four is matched to a room its own size', { skip }, async () => {
+  const { hostelA } = await tinyInventory();
+  const single = await makeRoomType(pool, 'Single AC', 1);
+  const twoSeater = await makeRoomType(pool, '2-seater', 2);
+  const threeSeater = await makeRoomType(pool, '3-seater', 3);
+  const fourSeater = await makeRoomType(pool, '4-seater room', 4);
 
-  // Three members, top CGPAs -- still ineligible.
+  await makeRoom(pool, hostelA, single, 'HA-101');
+  await makeRoom(pool, hostelA, twoSeater, 'HA-201');
+  await makeRoom(pool, hostelA, threeSeater, 'HA-301');
+  await makeRoom(pool, hostelA, fourSeater, 'HA-401');
+
+  const solo = await makeGroup(pool, {
+    name: 'Solo', semester: SEMESTER, cgpas: [8],
+    prefs: [[hostelA, single]],
+  });
+  const pair = await makeGroup(pool, {
+    name: 'Pair', semester: SEMESTER, cgpas: [8, 8],
+    prefs: [[hostelA, twoSeater]],
+  });
   const trio = await makeGroup(pool, {
-    name: 'Trio',
-    semester: SEMESTER,
-    cgpas: [10.0, 10.0, 10.0],
-    prefs: [[hostelA, fourSeater]],
+    name: 'Trio', semester: SEMESTER, cgpas: [8, 8, 8],
+    prefs: [[hostelA, threeSeater]],
   });
   const quad = await makeGroup(pool, {
-    name: 'Quad',
-    semester: SEMESTER,
-    cgpas: [7.0, 7.0, 7.0, 7.0],
+    name: 'Quad', semester: SEMESTER, cgpas: [8, 8, 8, 8],
     prefs: [[hostelA, fourSeater]],
   });
 
   const summary = await runAllotment({ semester: SEMESTER });
 
-  assert.equal(summary.skippedIncomplete, 1);
-  assert.equal(await allotmentFor(pool, trio.id, SEMESTER), null);
+  // Every size is allottable -- a small group is no longer turned away.
+  assert.equal(summary.allotted, 4);
+  assert.equal(summary.waitlisted, 0);
+  assert.equal((await allotmentFor(pool, solo.id, SEMESTER)).room_number, 'HA-101');
+  assert.equal((await allotmentFor(pool, pair.id, SEMESTER)).room_number, 'HA-201');
+  assert.equal((await allotmentFor(pool, trio.id, SEMESTER)).room_number, 'HA-301');
+  assert.equal((await allotmentFor(pool, quad.id, SEMESTER)).room_number, 'HA-401');
+
+  // The room records the group's real occupancy, not a fixed four.
+  const { rows } = await pool.query(
+    `SELECT current_occupancy FROM rooms WHERE room_number = 'HA-201'`
+  );
+  assert.equal(rows[0].current_occupancy, 2);
+});
+
+test('a group is never put in a room of the wrong capacity', { skip }, async () => {
+  const { hostelA } = await tinyInventory();
+  const twoSeater = await makeRoomType(pool, '2-seater', 2);
+  const sixSeater = await makeRoomType(pool, '6-seater', 6);
+  await makeRoom(pool, hostelA, twoSeater, 'HA-101');
+  await makeRoom(pool, hostelA, sixSeater, 'HA-201');
+
+  // A trio fits neither: the 2-bed is too small, the 6-bed would strand beds.
+  const trio = await makeGroup(pool, {
+    name: 'Trio', semester: SEMESTER, cgpas: [9, 9, 9],
+    prefs: [[hostelA, twoSeater], [hostelA, sixSeater]],
+  });
+
+  const summary = await runAllotment({ semester: SEMESTER });
+
+  assert.equal(summary.allotted, 0);
   assert.equal(await groupStatus(pool, trio.id), 'waitlist');
-  // The complete group still gets the room the trio could not claim.
-  assert.ok(await allotmentFor(pool, quad.id, SEMESTER));
 });
 
 test('skips rooms flagged for maintenance', { skip }, async () => {

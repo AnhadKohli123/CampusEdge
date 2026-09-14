@@ -21,6 +21,8 @@ sort groups by avg_cgpa DESC, created_at ASC
 for each group:
     for each preference in rank order:
         room = first free room in (hostel, room_type)
+               where capacity == group size
+                 and hostel gender == group gender
         if room: allot, mark group 'allotted', stop
     else: mark group 'waitlist'
 ```
@@ -75,13 +77,20 @@ A student whose gender is unset is waitlisted with the reason
 
 ### Room sizing
 
-A group is only matched to a room whose **capacity equals the group size**.
-Rooms are handed to one group whole ("empty rooms stay empty, no forced
-pairing"), so a group of 4 in a 6-bed room would strand two beds and cannot fit
-in a 2-bed room at all. The preferences API rejects any room type of another
-capacity up front, rather than accepting a choice the algorithm would silently
-never match. With `GROUP_SIZE=4`, only 4-capacity room types are allottable;
-the smaller types are seeded for future group sizes.
+A group is matched to a room whose **capacity equals its own member count**: a
+lone student gets a single, a pair a 2-seater, a trio a 3-seater, a four a
+4-seater. Rooms are handed to one group whole — the brief's "empty rooms stay
+empty, no forced pairing" — so a group is never put in a larger room (which
+would strand beds) or a smaller one (which could not hold them).
+
+This means **every room type is allottable**, and a group smaller than four is
+no longer turned away. `MAX_GROUP_SIZE` (4) is only the upper bound on how many
+people may join a group.
+
+The preference screen offers only the room types that fit the group's *current*
+size, and the API validates the same way. If the roster changes afterwards, the
+batch job simply skips the preferences that no longer fit — it never places a
+group in a room of the wrong size, whatever is stored.
 
 ---
 
@@ -124,8 +133,8 @@ Shaped to exercise every branch of the allotment rather than to look tidy:
 
 | | |
 |---|---|
-| 40 complete groups (160 students) | compete for **36** capacity-4 rooms |
-| 9 undersized groups (20 students) | sizes 1, 2 and 3 — ineligible, waitlisted |
+| 40 four-person groups (160 students) | compete for the 4-seater rooms |
+| 9 smaller groups (20 students) | sizes 1, 2 and 3 — matched to singles, 2- and 3-seaters |
 | 20 ungrouped students | never joined a group |
 | 3 complete groups | never submitted preferences |
 | Preference lists | vary from 2 to 10 entries |
@@ -138,10 +147,10 @@ interchangeable. Popular types (AC, Premium, Balcony) are weighted to appear
 near the top of most preference lists, which is what makes the CGPA ranking
 decide anything.
 
-A run over this dataset places 30 groups, waitlists 10 and skips 9 as
-incomplete — symmetrically, 15 of 20 complete groups on each side — across all
-four hostels, with rooms still free because a group is never forced into a room
-it did not ask for.
+A run over this dataset places 38 groups and waitlists 11, using nine of the
+eleven room types across all four hostels — singles and 2-seaters included,
+since small groups are now allottable. Rooms stay free because a group is never
+forced into a room it did not ask for.
 
 Seeded logins:
 
@@ -298,8 +307,9 @@ already carries the address to send to.
 
 ## Rules enforced
 
-- A group must have exactly `GROUP_SIZE` (default 4) members to be allotted;
-  smaller groups are waitlisted with a reason.
+- A group is matched to a room of exactly its own size; `MAX_GROUP_SIZE`
+  (default 4) only caps how many may join. A group with no members at all is
+  waitlisted with a reason.
 - A student belongs to at most one group per semester (enforced by a unique
   index, not just application code).
 - Only the group lead can change membership or preferences.

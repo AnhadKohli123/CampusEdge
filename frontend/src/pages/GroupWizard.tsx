@@ -15,7 +15,7 @@ import { Stepper } from '../components/Stepper';
 import { ArrowRightIcon, TrashIcon, UsersIcon } from '../components/Icons';
 import type { Group, Student } from '../lib/types';
 
-const GROUP_SIZE = 4;
+const MAX_GROUP_SIZE = 4;
 
 /** Two-letter monogram, so a member row reads as a person not a bullet. */
 function Avatar({ name, lead }: { name: string; lead?: boolean }) {
@@ -145,7 +145,7 @@ export function GroupWizard() {
   if (loading) return <Spinner label="Loading your group…" />;
 
   const isLead = group?.group_lead_id === session?.user.id;
-  const isFull = (group?.members.length ?? 0) >= GROUP_SIZE;
+  const isFull = (group?.members.length ?? 0) >= MAX_GROUP_SIZE;
   // Frozen once the batch has ranked the group. Students see the masked
   // 'submitted' status until results are published; staff see the real one.
   // Either way anything other than 'active' means the API will reject changes.
@@ -167,8 +167,9 @@ export function GroupWizard() {
             Form your group
           </h1>
           <p className="mt-1.5 text-balance text-sm leading-relaxed text-ink-400">
-            Groups need exactly {GROUP_SIZE} members to be allotted a room. You will
-            be the lead and can invite the other {GROUP_SIZE - 1} by link.
+            You will be the lead. Invite up to {MAX_GROUP_SIZE - 1} others by link —
+            your group is matched to a room its own size, so a pair gets a
+            2-seater and a four gets a 4-seater.
           </p>
         </div>
 
@@ -231,8 +232,17 @@ export function GroupWizard() {
         <StatusPill status={group.status} />
       </div>
 
-      <div className="mb-6">
-        <SeatMeter filled={group.members.length} total={GROUP_SIZE} />
+      <div className="mb-6 space-y-2">
+        <SeatMeter filled={group.members.length} total={MAX_GROUP_SIZE} />
+        <p className="text-xs text-ink-500">
+          A group of {group.members.length} is matched to{' '}
+          <span className="text-ink-300">
+            {group.members.length === 1
+              ? 'single rooms'
+              : `${group.members.length}-seater rooms`}
+          </span>
+          . Add or remove members to change that.
+        </p>
       </div>
 
       <div className="space-y-5">
@@ -243,18 +253,16 @@ export function GroupWizard() {
             <h2 className="font-medium text-ink-50">
               Members{' '}
               <span className="ml-1 tabular-nums text-ink-500">
-                {group.members.length}/{GROUP_SIZE}
+                {group.members.length}/{MAX_GROUP_SIZE}
               </span>
             </h2>
-            {isFull && (
-              <Link
-                to={isLocked ? '/result' : '/preferences'}
-                className="btn-primary btn-sm"
-              >
-                {isLocked ? 'View result' : 'Set preferences'}
-                <ArrowRightIcon className="h-3.5 w-3.5" />
-              </Link>
-            )}
+            <Link
+              to={isLocked ? '/result' : '/preferences'}
+              className="btn-primary btn-sm"
+            >
+              {isLocked ? 'View result' : 'Set preferences'}
+              <ArrowRightIcon className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
           <ul className="divide-y divide-navy-700/60">
@@ -290,10 +298,10 @@ export function GroupWizard() {
 
             {/* Placeholder rows so the shape of a full group is visible. */}
             {!isLocked &&
-              Array.from({ length: GROUP_SIZE - group.members.length }, (_, i) => (
+              Array.from({ length: MAX_GROUP_SIZE - group.members.length }, (_, i) => (
                 <li key={`empty-${i}`} className="flex items-center gap-3 py-3 opacity-40">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-navy-600" />
-                  <p className="text-sm text-ink-600">Empty seat</p>
+                  <p className="text-sm text-ink-600">Open seat — optional</p>
                 </li>
               ))}
           </ul>
@@ -309,7 +317,7 @@ export function GroupWizard() {
                 onChange={(e) => setSearch(e.target.value)}
               />
               {results.length > 0 && (
-                <ul className="mt-2 divide-y divide-navy-700/60 overflow-hidden rounded-xl border border-navy-700">
+                <ul className="mt-2 divide-y divide-navy-700/60 overflow-hidden rounded-md border border-navy-700">
                   {results
                     // Blocks are single-gender, so a mixed group could not be
                     // placed anywhere -- do not offer people who cannot join.
@@ -354,7 +362,7 @@ export function GroupWizard() {
         {isLead && !isFull && !isLocked && (
           <InvitePanel
             groupId={group.id}
-            seatsFree={GROUP_SIZE - group.members.length}
+            seatsFree={MAX_GROUP_SIZE - group.members.length}
             onChanged={() => void load()}
           />
         )}

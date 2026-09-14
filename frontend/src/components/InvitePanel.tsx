@@ -145,7 +145,7 @@ export function InvitePanel({
           {pending.map((invite) => (
             <div
               key={invite.id}
-              className="rounded-xl border border-navy-700 bg-navy-900/50 p-3"
+              className="rounded-md border border-navy-700 bg-navy-900/50 p-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="truncate text-sm text-ink-100">

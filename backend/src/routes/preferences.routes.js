@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query, withTransaction } from '../db.js';
-import { config } from '../config.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -86,8 +85,19 @@ router.put(
       seen.add(key);
     }
 
-    // A group can only be placed in a room sized exactly for it, so a
-    // preference for any other capacity would be silently unmatchable.
+    // A group is placed in a room sized exactly for it, so a preference for any
+    // other capacity would be silently unmatchable. Validated against the
+    // group's *current* size -- if the roster changes later, the allotment
+    // simply skips the entries that no longer fit and the UI flags them.
+    const { rows: sizeRows } = await query(
+      'SELECT COUNT(*)::int AS n FROM group_members WHERE group_id = $1',
+      [groupId]
+    );
+    const memberCount = sizeRows[0].n;
+    if (memberCount === 0) {
+      throw badRequest('Add at least one member before ranking preferences');
+    }
+
     const roomTypeIds = [...new Set(preferences.map((p) => p.roomTypeId))];
     const { rows: types } = await query(
       'SELECT id, name, capacity FROM room_types WHERE id = ANY($1::uuid[])',
@@ -96,10 +106,11 @@ router.put(
     if (types.length !== roomTypeIds.length) {
       throw badRequest('One or more room types do not exist');
     }
-    const wrongSize = types.filter((t) => t.capacity !== config.groupSize);
+    const wrongSize = types.filter((t) => t.capacity !== memberCount);
     if (wrongSize.length > 0) {
       throw badRequest(
-        `Groups of ${config.groupSize} can only request room types with capacity ${config.groupSize}`,
+        `Your group has ${memberCount} member${memberCount === 1 ? '' : 's'}, so it can ` +
+          `only request rooms with capacity ${memberCount}`,
         wrongSize.map((t) => ({ roomType: t.name, capacity: t.capacity }))
       );
     }

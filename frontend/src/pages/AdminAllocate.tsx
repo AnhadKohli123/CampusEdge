@@ -160,7 +160,7 @@ export function AdminAllocate() {
         </div>
 
         {confirming && (
-          <p className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <p className="mt-3 flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             <span className="mt-0.5 text-amber-400">
               <AlertIcon />
             </span>
@@ -225,9 +225,9 @@ export function AdminAllocate() {
         <section className="card space-y-5">
           <h2 className="font-medium text-ink-50">Last run</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Considered" value={summary.consideredGroups} />
             <Stat label="Allotted" value={summary.allotted} tone="text-emerald-400" />
             <Stat label="Waitlisted" value={summary.waitlisted} tone="text-amber-300" />
-            <Stat label="Incomplete" value={summary.skippedIncomplete} />
             <Stat label="Rooms free" value={summary.roomsStillFree} />
           </div>
 
@@ -237,6 +237,7 @@ export function AdminAllocate() {
                 <thead className="table-head">
                   <tr>
                     <th className="py-2.5 pr-4">Group</th>
+                    <th className="py-2.5 pr-4 text-right">Size</th>
                     <th className="py-2.5 pr-4 text-right">Avg CGPA</th>
                     <th className="py-2.5 pr-4">Hostel</th>
                     <th className="py-2.5 pr-4">Room</th>
@@ -248,6 +249,9 @@ export function AdminAllocate() {
                     <tr key={p.groupId} className="row-hover">
                       <td className="py-2.5 pr-4 font-medium text-ink-100">
                         {p.name ?? '—'}
+                      </td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums text-ink-300">
+                        {p.size}
                       </td>
                       <td className="py-2.5 pr-4 text-right tabular-nums text-ink-200">
                         {p.avgCgpa ?? '—'}
@@ -265,7 +269,7 @@ export function AdminAllocate() {
           )}
 
           {summary.unplaced.length > 0 && (
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
+            <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-4">
               <h3 className="text-sm font-medium text-amber-200">Not placed</h3>
               <ul className="mt-2 space-y-1 text-sm text-amber-300/90">
                 {summary.unplaced.map((u) => (

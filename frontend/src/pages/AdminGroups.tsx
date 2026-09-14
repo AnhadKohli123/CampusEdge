@@ -193,7 +193,7 @@ export function AdminGroups() {
               </thead>
               <tbody className="divide-y divide-navy-700/70">
                 {data.groups.map((group, index) => {
-                  const incomplete = group.member_count !== data.groupSize;
+                  const empty = group.member_count === 0;
                   const noPrefs = group.preference_count === 0;
                   return (
                     <tr key={group.id} className="row-hover">
@@ -227,11 +227,15 @@ export function AdminGroups() {
                       </td>
                       <td
                         className={`py-2.5 pr-4 text-right tabular-nums ${
-                          incomplete ? 'text-amber-300' : 'text-ink-300'
+                          empty ? 'text-amber-300' : 'text-ink-300'
                         }`}
-                        title={incomplete ? 'Incomplete groups are not allotted' : undefined}
+                        title={
+                          empty
+                            ? 'An empty group cannot be matched to a room'
+                            : `Matched to ${group.member_count === 1 ? 'single' : `${group.member_count}-seater`} rooms`
+                        }
                       >
-                        {group.member_count}/{data.groupSize}
+                        {group.member_count}
                       </td>
                       <td
                         className={`py-2.5 pr-4 text-right tabular-nums ${

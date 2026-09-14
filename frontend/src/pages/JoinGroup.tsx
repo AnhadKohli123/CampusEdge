@@ -58,7 +58,7 @@ export function JoinGroup() {
     <div className="mx-auto max-w-md animate-fade-up">
       <div className="card space-y-6 text-center">
         <div>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/25">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/25">
             <UsersIcon className="h-5 w-5" />
           </div>
           <p className="eyebrow">You have been invited to join</p>
@@ -81,7 +81,7 @@ export function JoinGroup() {
         <ErrorBanner error={error} />
 
         {unusable ? (
-          <p className="rounded-xl border border-navy-700 bg-navy-900/60 px-4 py-3 text-sm text-ink-300">
+          <p className="rounded-md border border-navy-700 bg-navy-900/60 px-4 py-3 text-sm text-ink-300">
             This invite is {preview.state}. Ask the group lead for a new link.
           </p>
         ) : !session ? (

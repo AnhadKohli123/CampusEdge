@@ -143,7 +143,12 @@ export function Layout() {
         )}
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+      {/* Keyed on the path so React remounts it per route and the entrance
+          animation replays -- navigation reads as movement, not a swap. */}
+      <main
+        key={location.pathname}
+        className="mx-auto max-w-6xl animate-fade-up px-4 py-8 sm:py-10"
+      >
         <Outlet />
       </main>
 

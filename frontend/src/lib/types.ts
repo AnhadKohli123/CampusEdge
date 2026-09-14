@@ -65,18 +65,19 @@ export type Allotment = {
 export type AllotmentSummary = {
   runId: string;
   semester: string;
-  groupSize: number;
+  maxGroupSize: number;
   consideredGroups: number;
   allotted: number;
   waitlisted: number;
-  skippedIncomplete: number;
   roomsStillFree: number;
+  freeRooms: { gender: string; capacity: number; rooms: number }[];
   byPreferenceRank: Record<string, number>;
   placements: {
     groupId: string;
     name: string | null;
     avgCgpa: number | null;
     matchedRank: number;
+    size: number;
     hostel: string;
     roomType: string;
     roomNumber: string;
@@ -143,7 +144,7 @@ export type AdminQueue = {
   groups: AdminGroupRow[];
   counts: { active: number; allotted: number; waitlist: number };
   readyToAllot: number;
-  groupSize: number;
+  maxGroupSize: number;
   resultsPublishedAt: string | null;
   publishedByName: string | null;
   sort: string;
