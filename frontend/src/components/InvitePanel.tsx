@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useToast } from './Toast';
 import { ErrorBanner, StatusPill } from './Feedback';
+import { CopyIcon, CheckIcon, LinkIcon, TrashIcon } from './Icons';
 import type { Invite } from '../lib/types';
 
 /**
@@ -16,6 +18,7 @@ export function InvitePanel({
   seatsFree: number;
   onChanged: () => void;
 }) {
+  const toast = useToast();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<unknown>(null);
@@ -43,6 +46,7 @@ export function InvitePanel({
         method: 'POST',
         body: withEmail && email ? { email } : {},
       });
+      toast(withEmail ? `Invite created for ${email}` : 'Shareable link created');
       setEmail('');
       await load();
       onChanged();
@@ -58,6 +62,7 @@ export function InvitePanel({
     setError(null);
     try {
       await api(`/groups/${groupId}/invites/${id}`, { method: 'DELETE' });
+      toast('Invite revoked', 'info');
       await load();
       onChanged();
     } catch (err) {
@@ -70,9 +75,11 @@ export function InvitePanel({
   async function copy(url: string, id: string) {
     try {
       await navigator.clipboard.writeText(url);
+      toast('Link copied to clipboard');
     } catch {
       // Clipboard is blocked outside a secure context; the input below still
       // lets them select the link by hand.
+      toast('Select the link and copy it manually', 'info');
     }
     setCopied(id);
     setTimeout(() => setCopied(null), 1800);
@@ -83,14 +90,26 @@ export function InvitePanel({
 
   return (
     <section className="card space-y-5">
-      <div>
-        <h2 className="font-medium text-ink-50">Invite by link</h2>
-        <p className="mt-1 text-sm text-ink-400">
-          {seatsFree > 0
-            ? `${seatsFree} seat${seatsFree === 1 ? '' : 's'} left. An emailed invite can
-               only be accepted by that address; an open link works for anyone who has it.`
-            : 'No seats left — revoke a pending invite to free one.'}
-        </p>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/20">
+          <LinkIcon />
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-medium text-ink-50">Invite by link</h2>
+          <p className="mt-1 text-sm leading-relaxed text-ink-400">
+            {seatsFree > 0 ? (
+              <>
+                <span className="text-ink-200">
+                  {seatsFree} seat{seatsFree === 1 ? '' : 's'} left.
+                </span>{' '}
+                An emailed invite can only be accepted by that address; an open link
+                works for anyone who has it.
+              </>
+            ) : (
+              'No seats left — revoke a pending invite to free one.'
+            )}
+          </p>
+        </div>
       </div>
 
       <ErrorBanner error={error} />
@@ -121,25 +140,26 @@ export function InvitePanel({
       </div>
 
       {pending.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <p className="eyebrow">Pending</p>
           {pending.map((invite) => (
             <div
               key={invite.id}
-              className="rounded-xl border border-navy-700 bg-navy-900/60 p-3"
+              className="rounded-xl border border-navy-700 bg-navy-900/50 p-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-ink-100">
+                <span className="truncate text-sm text-ink-100">
                   {invite.email ?? 'Anyone with the link'}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <StatusPill status={invite.state} />
                   <button
-                    className="btn-danger px-2.5 py-1 text-xs"
+                    className="rounded-lg p-1.5 text-ink-600 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                     onClick={() => revoke(invite.id)}
                     disabled={busy}
+                    aria-label="Revoke invite"
                   >
-                    Revoke
+                    <TrashIcon className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -150,12 +170,21 @@ export function InvitePanel({
                     className="input font-mono text-xs"
                     value={invite.url}
                     onFocus={(e) => e.currentTarget.select()}
+                    aria-label="Invite link"
                   />
                   <button
                     className="btn-secondary shrink-0"
                     onClick={() => copy(invite.url!, invite.id)}
                   >
-                    {copied === invite.id ? 'Copied' : 'Copy'}
+                    {copied === invite.id ? (
+                      <>
+                        <CheckIcon className="h-3.5 w-3.5" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <CopyIcon className="h-3.5 w-3.5" /> Copy
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -165,14 +194,14 @@ export function InvitePanel({
       )}
 
       {past.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 border-t border-navy-700/70 pt-4">
           <p className="eyebrow">History</p>
           {past.map((invite) => (
             <div
               key={invite.id}
-              className="flex items-center justify-between rounded-lg px-1 py-1.5 text-sm"
+              className="flex items-center justify-between gap-3 py-1 text-sm"
             >
-              <span className="text-ink-400">
+              <span className="truncate text-ink-400">
                 {invite.email ?? 'Open link'}
               </span>
               <StatusPill status={invite.state} />

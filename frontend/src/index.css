@@ -5,14 +5,16 @@
 @layer base {
   html {
     color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply min-h-screen bg-navy-950 bg-navy-glow bg-no-repeat text-ink-100 antialiased;
+    @apply min-h-screen bg-navy-950 bg-navy-glow bg-no-repeat font-sans text-ink-100 antialiased;
     background-attachment: fixed;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
   }
 
-  /* Inputs inherit the dark surface rather than the browser's white default. */
+  /* Native dropdowns paint their own list; keep it on the dark surface. */
   select option {
     @apply bg-navy-850 text-ink-100;
   }
@@ -20,62 +22,151 @@
   ::selection {
     @apply bg-accent-500/30 text-white;
   }
+
+  /* A slim scrollbar reads better against the dark ground than the default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.navy.600') transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-navy-600 bg-clip-content;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-navy-500;
+  }
+
+  /* Visible focus for keyboard users, invisible for mouse users. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-500/60 ring-offset-2 ring-offset-navy-950;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
+  /* --- Surfaces ------------------------------------------------------- */
+
   .card {
-    @apply rounded-2xl border border-navy-700 bg-navy-850/70 p-6 shadow-card
-           backdrop-blur-sm;
+    @apply relative rounded-2xl border border-navy-700/80 bg-navy-850/60 p-6
+           shadow-card backdrop-blur-sm;
   }
 
+  /* A one-pixel highlight along the top edge, the way real glass catches light. */
+  .card::before {
+    content: '';
+    @apply pointer-events-none absolute inset-x-6 top-0 h-px
+           bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-navy-600
+           hover:shadow-lift;
+  }
+
+  /* --- Buttons -------------------------------------------------------- */
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm
-           font-medium transition-all duration-150
-           disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap
+           rounded-xl px-4 py-2.5 text-sm font-medium
+           transition-all duration-150
+           disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-primary {
     @apply btn bg-gradient-to-b from-accent-500 to-accent-600 text-white
-           shadow-[0_1px_0_rgba(255,255,255,.15)_inset,0_6px_18px_-8px_rgba(77,141,255,.9)]
-           hover:from-accent-400 hover:to-accent-500 active:translate-y-px;
+           shadow-[0_1px_0_rgba(255,255,255,.18)_inset,0_6px_20px_-8px_rgba(77,141,255,.95)]
+           hover:from-accent-400 hover:to-accent-500
+           hover:shadow-[0_1px_0_rgba(255,255,255,.22)_inset,0_10px_28px_-8px_rgba(77,141,255,1)]
+           active:translate-y-px active:shadow-none;
   }
   .btn-secondary {
-    @apply btn border border-navy-600 bg-navy-800/70 text-ink-100
-           hover:border-navy-500 hover:bg-navy-700/70 active:translate-y-px;
+    @apply btn border border-navy-600/80 bg-navy-800/60 text-ink-100
+           hover:border-navy-500 hover:bg-navy-700/60 active:translate-y-px;
   }
   .btn-ghost {
-    @apply btn text-ink-300 hover:bg-navy-800 hover:text-ink-100;
+    @apply btn text-ink-400 hover:bg-navy-800/80 hover:text-ink-100;
   }
   .btn-danger {
     @apply btn border border-rose-500/30 bg-rose-500/10 text-rose-300
            hover:border-rose-500/50 hover:bg-rose-500/20;
   }
+  .btn-sm {
+    @apply rounded-lg px-2.5 py-1.5 text-xs;
+  }
+
+  /* --- Form controls -------------------------------------------------- */
 
   .input {
-    @apply w-full rounded-xl border border-navy-700 bg-navy-900/80 px-3.5 py-2.5
+    @apply w-full rounded-xl border border-navy-700 bg-navy-900/70 px-3.5 py-2.5
            text-sm text-ink-50 placeholder:text-ink-500
-           transition-colors
-           focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/25;
+           transition-all duration-150
+           hover:border-navy-600
+           focus:border-accent-500 focus:bg-navy-900 focus:outline-none
+           focus:ring-4 focus:ring-accent-500/15;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-ink-300;
+    @apply mb-1.5 block text-sm font-medium text-ink-200;
   }
   .hint {
-    @apply mt-1.5 text-xs text-ink-500;
+    @apply mt-1.5 text-xs leading-relaxed text-ink-500;
   }
+
+  /* Segmented two-or-three-way choice, used for role and hostel block. */
+  .segment {
+    @apply inline-flex rounded-xl border border-navy-700 bg-navy-900/60 p-1;
+  }
+  .segment-item {
+    @apply rounded-lg px-4 py-1.5 text-sm font-medium text-ink-400
+           transition-all duration-150 hover:text-ink-100;
+  }
+  .segment-item-active {
+    @apply bg-gradient-to-b from-accent-500 to-accent-600 text-white shadow-sm;
+  }
+
+  /* --- Bits ----------------------------------------------------------- */
 
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
-
-  /* Section heading used above cards and tables. */
   .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-wider text-ink-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500;
   }
-
   .table-head {
-    @apply border-b border-navy-700 text-xs font-semibold uppercase tracking-wide text-ink-500;
+    @apply border-b border-navy-700 text-[11px] font-semibold uppercase
+           tracking-[0.06em] text-ink-500;
   }
   .row-hover {
-    @apply transition-colors hover:bg-navy-800/50;
+    @apply transition-colors duration-100 hover:bg-navy-800/40;
+  }
+
+  /* Gradient rule used to separate major sections. */
+  .divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-navy-600 to-transparent;
+  }
+}
+
+@layer utilities {
+  /* Staggered entrance: children fade up in sequence. */
+  .stagger > * {
+    @apply animate-fade-up;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(5) { animation-delay: 240ms; }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }

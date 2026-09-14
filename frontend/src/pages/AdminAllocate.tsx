@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { ErrorBanner, Spinner, Stat } from '../components/Feedback';
+import { ErrorBanner, Stat, TableSkeleton } from '../components/Feedback';
+import { useToast } from '../components/Toast';
+import { AlertIcon, EyeIcon, EyeOffIcon, ListIcon, PlayIcon } from '../components/Icons';
 import type { AllotmentSummary, Occupancy } from '../lib/types';
 
 type ResultSettings = {
@@ -21,6 +23,7 @@ type ResultSettings = {
  */
 export function AdminAllocate() {
   const { session } = useAuth();
+  const toast = useToast();
   const isAdmin = session?.kind === 'staff' && session.user.role === 'admin';
 
   const [semester, setSemester] = useState('2024-Spring');
@@ -59,6 +62,10 @@ export function AdminAllocate() {
         { method: 'POST', body: { semester } }
       );
       setSettings(data.settings);
+      toast(
+        published ? 'Results are now visible to students' : 'Results hidden again',
+        published ? 'success' : 'info'
+      );
     } catch (err) {
       setError(err);
     } finally {
@@ -82,6 +89,9 @@ export function AdminAllocate() {
         body: { semester },
       });
       setSummary(data.summary);
+      toast(
+        `Allotted ${data.summary.allotted}, waitlisted ${data.summary.waitlisted}`
+      );
       await loadOccupancy(semester);
     } catch (err) {
       setError(err);
@@ -94,16 +104,17 @@ export function AdminAllocate() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
             {isAdmin ? 'Run allotment' : 'Hostel occupancy'}
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-ink-400">
+          <p className="mt-1.5 max-w-xl text-balance text-sm leading-relaxed text-ink-400">
             {isAdmin
               ? 'Groups are ranked by average CGPA and matched to their highest available preference. Re-running is safe — allotted groups keep their room.'
               : 'Occupancy for the hostel you look after. Only an administrator can start a college-wide allotment.'}
           </p>
         </div>
         <Link to="/admin/groups" className="btn-secondary">
+          <ListIcon className="h-3.5 w-3.5" />
           View queue
         </Link>
       </div>
@@ -142,15 +153,21 @@ export function AdminAllocate() {
                 onClick={() => setConfirming(true)}
                 disabled={running}
               >
+                <PlayIcon className="h-3.5 w-3.5" />
                 Run allotment
               </button>
             ))}
         </div>
 
         {confirming && (
-          <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
-            This assigns rooms for <strong>{semester}</strong> and cannot be undone from
-            this screen.
+          <p className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <span className="mt-0.5 text-amber-400">
+              <AlertIcon />
+            </span>
+            <span>
+              This assigns rooms for <strong>{semester}</strong> and cannot be undone
+              from this screen. Students see nothing until you publish.
+            </span>
           </p>
         )}
       </section>
@@ -159,7 +176,10 @@ export function AdminAllocate() {
         <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 className="font-medium text-ink-50">Results visibility</h2>
+              <h2 className="flex items-center gap-2 font-medium text-ink-50">
+                {settings?.results_published_at ? <EyeIcon /> : <EyeOffIcon />}
+                Results visibility
+              </h2>
               <p className="mt-1 max-w-lg text-sm text-ink-400">
                 {settings?.results_published_at
                   ? `Published ${new Date(settings.results_published_at).toLocaleString()}${
@@ -272,7 +292,7 @@ export function AdminAllocate() {
         </div>
 
         {loading ? (
-          <Spinner />
+          <TableSkeleton rows={6} cols={5} />
         ) : !occupancy ? null : (
           <>
             <div className="grid grid-cols-3 gap-3">
