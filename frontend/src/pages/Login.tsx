@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { AuthLayout } from '../components/AuthLayout';
 import { ErrorBanner } from '../components/Feedback';
+import { EyeIcon, EyeOffIcon } from '../components/Icons';
 import type { Admin, Student } from '../lib/types';
 
 type Mode = 'student' | 'staff';
@@ -11,6 +13,7 @@ export function Login() {
   const [mode, setMode] = useState<Mode>('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,20 +50,32 @@ export function Login() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-1 text-2xl font-semibold">Sign in</h1>
-      <p className="mb-6 text-sm text-ink-400">
-        Hostel allotment for the current semester.
-      </p>
-
-      <div className="mb-4 inline-flex rounded-lg border border-navy-600 bg-navy-850 p-1">
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to manage your group and see your allotment."
+      footer={
+        mode === 'student' ? (
+          <>
+            New here?{' '}
+            <Link
+              to="/signup"
+              state={redirectTo ? { redirectTo } : undefined}
+              className="font-medium text-accent-400 transition-colors hover:text-accent-300"
+            >
+              Create an account
+            </Link>
+          </>
+        ) : null
+      }
+    >
+      <div className="segment mb-5">
         {(['student', 'staff'] as Mode[]).map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => setMode(option)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize ${
-              mode === option ? 'bg-accent-500 text-white' : 'text-ink-300'
+            className={`segment-item capitalize ${
+              mode === option ? 'segment-item-active' : ''
             }`}
           >
             {option}
@@ -70,49 +85,50 @@ export function Login() {
 
       <form onSubmit={handleSubmit} className="card space-y-4">
         <ErrorBanner error={error} />
+
         <div>
-          <label className="label" htmlFor="email">
-            Email
-          </label>
+          <label className="label" htmlFor="email">Email</label>
           <input
             id="email"
             type="email"
             required
+            autoComplete="email"
             className="input"
+            placeholder={
+              mode === 'student' ? 'you@campusedge.edu' : 'admin@campusedge.edu'
+            }
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
+
         <div>
-          <label className="label" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            className="input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <label className="label" htmlFor="password">Password</label>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              autoComplete="current-password"
+              className="input pr-11"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-500 transition-colors hover:text-ink-200"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
         </div>
+
         <button className="btn-primary w-full" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-
-      {mode === 'student' && (
-        <p className="mt-4 text-center text-sm text-ink-400">
-          New here?{' '}
-          <Link
-            to="/signup"
-            state={redirectTo ? { redirectTo } : undefined}
-            className="font-medium text-accent-400 hover:underline"
-          >
-            Create an account
-          </Link>
-        </p>
-      )}
-    </div>
+    </AuthLayout>
   );
 }

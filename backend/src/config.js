@@ -23,9 +23,9 @@ export const config = {
   // Where the frontend lives -- invite links are built against this.
   appBaseUrl: (process.env.APP_BASE_URL ?? 'http://localhost:5173').replace(/\/$/, ''),
 
-  // Domain rules. Groups must be exactly this size to be allotted, and a group
-  // may only take a room whose type capacity matches that size (see
-  // services/allotment.service.js for why).
-  groupSize: Number(process.env.GROUP_SIZE ?? 4),
+  // The largest a group may be. A group is matched to a room whose capacity
+  // equals its *actual* member count, so a pair gets a 2-seater and a single
+  // student gets a single room -- this is only the upper bound.
+  maxGroupSize: Number(process.env.MAX_GROUP_SIZE ?? process.env.GROUP_SIZE ?? 4),
   currentSemester: process.env.CURRENT_SEMESTER ?? '2024-Spring',
 };

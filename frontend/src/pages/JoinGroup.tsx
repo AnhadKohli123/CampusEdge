@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { ErrorBanner, Spinner } from '../components/Feedback';
+import { ErrorBanner, SeatMeter, Spinner } from '../components/Feedback';
+import { UsersIcon } from '../components/Icons';
 import type { InvitePreview } from '../lib/types';
 
 /**
@@ -54,11 +55,14 @@ export function JoinGroup() {
   const seatsLeft = preview.groupSize - preview.memberCount;
 
   return (
-    <div className="mx-auto max-w-md">
+    <div className="mx-auto max-w-md animate-fade-up">
       <div className="card space-y-6 text-center">
         <div>
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-accent-500/10 text-accent-300 ring-1 ring-inset ring-accent-500/25">
+            <UsersIcon className="h-5 w-5" />
+          </div>
           <p className="eyebrow">You have been invited to join</p>
-          <h1 className="mt-2 text-2xl font-semibold text-ink-50">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink-50">
             {preview.groupName ?? 'a hostel group'}
           </h1>
           <p className="mt-1.5 text-sm text-ink-400">
@@ -66,15 +70,8 @@ export function JoinGroup() {
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: preview.groupSize }, (_, i) => (
-            <span
-              key={i}
-              className={`h-2.5 w-8 rounded-full ${
-                i < preview.memberCount ? 'bg-accent-500' : 'bg-navy-700'
-              }`}
-            />
-          ))}
+        <div className="px-8">
+          <SeatMeter filled={preview.memberCount} total={preview.groupSize} />
         </div>
         <p className="-mt-3 text-sm text-ink-400">
           {preview.memberCount} of {preview.groupSize} members
@@ -84,7 +81,7 @@ export function JoinGroup() {
         <ErrorBanner error={error} />
 
         {unusable ? (
-          <p className="rounded-xl border border-navy-700 bg-navy-900/60 px-4 py-3 text-sm text-ink-300">
+          <p className="rounded-md border border-navy-700 bg-navy-900/60 px-4 py-3 text-sm text-ink-300">
             This invite is {preview.state}. Ask the group lead for a new link.
           </p>
         ) : !session ? (

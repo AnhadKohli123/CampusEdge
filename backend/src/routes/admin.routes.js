@@ -112,7 +112,9 @@ router.get(
     const counts = { active: 0, allotted: 0, waitlist: 0 };
     for (const row of totals) counts[row.status] = row.n;
 
-    // How many groups the next run would actually place.
+    // How many groups the next run could actually place: at least one member
+    // and at least one preference. Size no longer gates eligibility -- a pair
+    // is matched to a 2-seater, a lone student to a single.
     const { rows: readyRows } = await query(
       `SELECT COUNT(*)::int AS n FROM (
          SELECT g.id
@@ -120,10 +122,10 @@ router.get(
            JOIN group_members gm ON gm.group_id = g.id
           WHERE g.semester = $1 AND g.status = 'active'
           GROUP BY g.id
-         HAVING COUNT(gm.id) = $2
+         HAVING COUNT(gm.id) > 0
             AND EXISTS (SELECT 1 FROM preferences p WHERE p.group_id = g.id)
        ) ready`,
-      [semester, config.groupSize]
+      [semester]
     );
 
     const settings = await getSettings(semester);
@@ -133,7 +135,7 @@ router.get(
       groups: rows,
       counts,
       readyToAllot: readyRows[0].n,
-      groupSize: config.groupSize,
+      maxGroupSize: config.maxGroupSize,
       resultsPublishedAt: settings.results_published_at,
       publishedByName: settings.published_by_name,
       sort,

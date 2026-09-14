@@ -2,18 +2,46 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { EmptyState, ErrorBanner, Spinner, StatusPill } from '../components/Feedback';
+import { useToast } from '../components/Toast';
+import {
+  EmptyState,
+  ErrorBanner,
+  SeatMeter,
+  Spinner,
+  StatusPill,
+} from '../components/Feedback';
 import { InvitePanel } from '../components/InvitePanel';
+import { Stepper } from '../components/Stepper';
+import { ArrowRightIcon, TrashIcon, UsersIcon } from '../components/Icons';
 import type { Group, Student } from '../lib/types';
 
-const GROUP_SIZE = 4;
+const MAX_GROUP_SIZE = 4;
 
-/**
- * Group formation. Step 1 creates the group, step 2 adds members until it is
- * full. Only the lead can modify it, which mirrors the API's own rule.
- */
+/** Two-letter monogram, so a member row reads as a person not a bullet. */
+function Avatar({ name, lead }: { name: string; lead?: boolean }) {
+  const initials = name
+    .split(' ')
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+  return (
+    <span
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+        lead
+          ? 'bg-gradient-to-br from-accent-400 to-accent-600 text-white'
+          : 'bg-navy-800 text-ink-300 ring-1 ring-inset ring-navy-700'
+      }`}
+    >
+      {initials}
+    </span>
+  );
+}
+
 export function GroupWizard() {
   const { session } = useAuth();
+  const toast = useToast();
+
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -39,7 +67,7 @@ export function GroupWizard() {
     void load();
   }, [load]);
 
-  // Debounced student lookup for the "add member" box.
+  // Debounced lookup for the "add member" box.
   useEffect(() => {
     if (search.trim().length < 2) {
       setResults([]);
@@ -68,6 +96,7 @@ export function GroupWizard() {
         body: groupName ? { name: groupName } : {},
       });
       setGroup(data.group);
+      toast('Group created — now invite your members');
     } catch (err) {
       setError(err);
     } finally {
@@ -75,7 +104,7 @@ export function GroupWizard() {
     }
   }
 
-  async function addMember(studentId: string) {
+  async function addMember(studentId: string, name: string) {
     if (!group) return;
     setBusy(true);
     setError(null);
@@ -87,6 +116,7 @@ export function GroupWizard() {
       setGroup(data.group);
       setSearch('');
       setResults([]);
+      toast(`${name} added to the group`);
     } catch (err) {
       setError(err);
     } finally {
@@ -94,7 +124,7 @@ export function GroupWizard() {
     }
   }
 
-  async function removeMember(studentId: string) {
+  async function removeMember(studentId: string, name: string) {
     if (!group) return;
     setBusy(true);
     setError(null);
@@ -104,6 +134,7 @@ export function GroupWizard() {
         { method: 'DELETE' }
       );
       setGroup(data.group);
+      toast(`${name} removed`, 'info');
     } catch (err) {
       setError(err);
     } finally {
@@ -111,10 +142,10 @@ export function GroupWizard() {
     }
   }
 
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner label="Loading your group…" />;
 
   const isLead = group?.group_lead_id === session?.user.id;
-  const isFull = (group?.members.length ?? 0) >= GROUP_SIZE;
+  const isFull = (group?.members.length ?? 0) >= MAX_GROUP_SIZE;
   // Frozen once the batch has ranked the group. Students see the masked
   // 'submitted' status until results are published; staff see the real one.
   // Either way anything other than 'active' means the API will reject changes.
@@ -123,14 +154,29 @@ export function GroupWizard() {
   if (!group) {
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="mb-1 text-2xl font-semibold">Form your group</h1>
-        <p className="mb-6 text-sm text-ink-400">
-          Groups must have exactly {GROUP_SIZE} members to be allotted a room.
-        </p>
+        <Stepper
+          current={0}
+          steps={[
+            { to: '/group', label: 'Form group', done: false },
+            { to: '/preferences', label: 'Rank preferences', done: false },
+            { to: '/result', label: 'Result', done: false },
+          ]}
+        />
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+            Form your group
+          </h1>
+          <p className="mt-1.5 text-balance text-sm leading-relaxed text-ink-400">
+            You will be the lead. Invite up to {MAX_GROUP_SIZE - 1} others by link —
+            your group is matched to a room its own size, so a pair gets a
+            2-seater and a four gets a 4-seater.
+          </p>
+        </div>
+
         <form onSubmit={createGroup} className="card space-y-4">
           <ErrorBanner error={error} />
           <div>
-            <label className="label" htmlFor="groupName">Group name (optional)</label>
+            <label className="label" htmlFor="groupName">Group name</label>
             <input
               id="groupName"
               className="input"
@@ -138,37 +184,46 @@ export function GroupWizard() {
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
             />
+            <p className="hint">Optional — you can leave it blank.</p>
           </div>
           <button className="btn-primary w-full" disabled={busy}>
             {busy ? 'Creating…' : 'Create group'}
           </button>
-          <p className="text-xs text-ink-400">
-            You become the group lead and can add the other {GROUP_SIZE - 1} members.
-          </p>
         </form>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{group.name ?? 'Your group'}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-ink-400">
+    <div className="mx-auto max-w-2xl">
+      <Stepper
+        current={0}
+        steps={[
+          { to: '/group', label: 'Form group', done: isFull },
+          { to: '/preferences', label: 'Rank preferences', done: isLocked },
+          { to: '/result', label: 'Result', done: false },
+        ]}
+      />
+
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-50">
+            {group.name ?? 'Your group'}
+          </h1>
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-400">
             <span>{group.semester}</span>
             <span aria-hidden>·</span>
             <span>
-              average CGPA{' '}
-              <span className="font-medium text-ink-100">
+              avg CGPA{' '}
+              <span className="font-medium tabular-nums text-ink-100">
                 {group.avg_cgpa?.toFixed(2) ?? '—'}
               </span>
             </span>
             {group.gender && (
               <>
                 <span aria-hidden>·</span>
-                <span className="pill bg-navy-700/60 text-ink-300 ring-1 ring-inset ring-navy-600">
-                  {group.gender === 'female' ? "Girls' hostel" : "Boys' hostel"}
+                <span className="pill bg-navy-800 text-ink-300 ring-1 ring-inset ring-navy-700">
+                  {group.gender === 'female' ? "Girls' block" : "Boys' block"}
                 </span>
               </>
             )}
@@ -177,135 +232,150 @@ export function GroupWizard() {
         <StatusPill status={group.status} />
       </div>
 
-      <div className="flex items-center gap-2">
-        {Array.from({ length: GROUP_SIZE }, (_, i) => (
-          <span
-            key={i}
-            className={`h-2 flex-1 rounded-full ${
-              i < group.members.length ? 'bg-accent-500' : 'bg-navy-700'
-            }`}
-          />
-        ))}
+      <div className="mb-6 space-y-2">
+        <SeatMeter filled={group.members.length} total={MAX_GROUP_SIZE} />
+        <p className="text-xs text-ink-500">
+          A group of {group.members.length} is matched to{' '}
+          <span className="text-ink-300">
+            {group.members.length === 1
+              ? 'single rooms'
+              : `${group.members.length}-seater rooms`}
+          </span>
+          . Add or remove members to change that.
+        </p>
       </div>
 
-      <ErrorBanner error={error} />
+      <div className="space-y-5">
+        <ErrorBanner error={error} />
 
-      <section className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-medium">
-            Members{' '}
-            <span className="text-ink-500">
-              {group.members.length}/{GROUP_SIZE}
-            </span>
-          </h2>
-          {isFull && (
-            <Link to={isLocked ? '/result' : '/preferences'} className="btn-primary">
-              {isLocked ? 'View result →' : 'Set preferences →'}
+        <section className="card">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-medium text-ink-50">
+              Members{' '}
+              <span className="ml-1 tabular-nums text-ink-500">
+                {group.members.length}/{MAX_GROUP_SIZE}
+              </span>
+            </h2>
+            <Link
+              to={isLocked ? '/result' : '/preferences'}
+              className="btn-primary btn-sm"
+            >
+              {isLocked ? 'View result' : 'Set preferences'}
+              <ArrowRightIcon className="h-3.5 w-3.5" />
             </Link>
-          )}
-        </div>
+          </div>
 
-        <ul className="divide-y divide-navy-700/70">
-          {group.members.map((member) => (
-            <li key={member.id} className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium">
-                  {member.name}
-                  {member.id === group.group_lead_id && (
-                    <span className="ml-2 rounded bg-accent-500/15 px-1.5 py-0.5 text-xs text-accent-300">
-                      lead
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-ink-400">{member.email}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm tabular-nums text-ink-300">
+          <ul className="divide-y divide-navy-700/60">
+            {group.members.map((member) => (
+              <li key={member.id} className="flex items-center gap-3 py-3">
+                <Avatar name={member.name} lead={member.id === group.group_lead_id} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-sm font-medium text-ink-100">
+                    <span className="truncate">{member.name}</span>
+                    {member.id === group.group_lead_id && (
+                      <span className="shrink-0 rounded bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-300">
+                        lead
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-xs text-ink-500">{member.email}</p>
+                </div>
+                <span className="shrink-0 text-sm tabular-nums text-ink-300">
                   {member.cgpa?.toFixed(2) ?? '—'}
                 </span>
                 {isLead && !isLocked && member.id !== group.group_lead_id && (
                   <button
-                    className="text-xs text-rose-400 hover:underline"
+                    className="shrink-0 rounded-lg p-1.5 text-ink-600 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                     disabled={busy}
-                    onClick={() => removeMember(member.id)}
+                    onClick={() => removeMember(member.id, member.name)}
+                    aria-label={`Remove ${member.name}`}
                   >
-                    Remove
+                    <TrashIcon className="h-3.5 w-3.5" />
                   </button>
                 )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
 
-        {!isFull && isLead && (
-          <div className="mt-5 border-t border-navy-700/70 pt-5">
-            <label className="label" htmlFor="search">Add a member</label>
-            <input
-              id="search"
-              className="input"
-              placeholder="Search by name or email"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {results.length > 0 && (
-              <ul className="mt-2 divide-y divide-navy-700/70 rounded-lg border border-navy-700">
-                {results
-                  // Blocks are single-gender, so a mixed group could not be
-                  // placed anywhere -- do not offer people who cannot join.
-                  .filter((s) => !group.gender || s.gender === group.gender)
-                  .filter((s) => !group.members.some((m) => m.id === s.id))
-                  .map((student) => (
-                    <li
-                      key={student.id}
-                      className="flex items-center justify-between px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm">{student.name}</p>
-                        <p className="text-xs text-ink-400">{student.email}</p>
-                      </div>
-                      <button
-                        className="btn-secondary py-1"
-                        disabled={busy}
-                        onClick={() => addMember(student.id)}
+            {/* Placeholder rows so the shape of a full group is visible. */}
+            {!isLocked &&
+              Array.from({ length: MAX_GROUP_SIZE - group.members.length }, (_, i) => (
+                <li key={`empty-${i}`} className="flex items-center gap-3 py-3 opacity-40">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-navy-600" />
+                  <p className="text-sm text-ink-600">Open seat — optional</p>
+                </li>
+              ))}
+          </ul>
+
+          {!isFull && isLead && (
+            <div className="mt-5 border-t border-navy-700/70 pt-5">
+              <label className="label" htmlFor="search">Add someone already registered</label>
+              <input
+                id="search"
+                className="input"
+                placeholder="Search by name or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {results.length > 0 && (
+                <ul className="mt-2 divide-y divide-navy-700/60 overflow-hidden rounded-md border border-navy-700">
+                  {results
+                    // Blocks are single-gender, so a mixed group could not be
+                    // placed anywhere -- do not offer people who cannot join.
+                    .filter((s) => !group.gender || s.gender === group.gender)
+                    .filter((s) => !group.members.some((m) => m.id === s.id))
+                    .map((student) => (
+                      <li
+                        key={student.id}
+                        className="flex items-center gap-3 bg-navy-900/40 px-3 py-2.5"
                       >
-                        Add
-                      </button>
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </div>
+                        <Avatar name={student.name} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-ink-100">{student.name}</p>
+                          <p className="truncate text-xs text-ink-500">{student.email}</p>
+                        </div>
+                        <button
+                          className="btn-secondary btn-sm shrink-0"
+                          disabled={busy}
+                          onClick={() => addMember(student.id, student.name)}
+                        >
+                          Add
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {search.trim().length >= 2 && results.length === 0 && (
+                <p className="hint">
+                  Nobody found — send them an invite link below instead.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!isFull && !isLead && (
+            <p className="mt-4 border-t border-navy-700/70 pt-4 text-sm text-ink-500">
+              Only the group lead can add or remove members.
+            </p>
+          )}
+        </section>
+
+        {isLead && !isFull && !isLocked && (
+          <InvitePanel
+            groupId={group.id}
+            seatsFree={MAX_GROUP_SIZE - group.members.length}
+            onChanged={() => void load()}
+          />
         )}
 
-        {!isFull && !isLead && (
-          <p className="mt-4 text-sm text-ink-400">
-            Only the group lead can add or remove members.
-          </p>
+        {isLocked && (
+          <EmptyState
+            icon={<UsersIcon />}
+            title="Group changes are closed"
+            hint="Allotment has been run for this semester, so the roster is fixed. Your result appears once the hostel office publishes it."
+            action={<Link to="/result" className="btn-secondary">Check result</Link>}
+          />
         )}
-      </section>
-
-      {isLead && !isFull && !isLocked && (
-        <InvitePanel
-          groupId={group.id}
-          seatsFree={GROUP_SIZE - group.members.length}
-          onChanged={() => void load()}
-        />
-      )}
-
-      {isLocked && (
-        <EmptyState
-          title="Group changes are closed"
-          hint="Allotment has been run for this semester, so the roster is fixed. Your result appears once the hostel office publishes it."
-        />
-      )}
-
-      {!isFull && !isLocked && (
-        <EmptyState
-          title={`${GROUP_SIZE - group.members.length} more member(s) needed`}
-          hint={`Groups smaller than ${GROUP_SIZE} are not allotted a room.`}
-        />
-      )}
+      </div>
     </div>
   );
 }
-

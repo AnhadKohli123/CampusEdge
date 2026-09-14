@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { EmptyState, ErrorBanner, Spinner, Stat, StatusPill } from '../components/Feedback';
+import {
+  EmptyState,
+  ErrorBanner,
+  Stat,
+  StatusPill,
+  TableSkeleton,
+} from '../components/Feedback';
+import { ListIcon, PlayIcon, UsersIcon } from '../components/Icons';
 import type { AdminQueue } from '../lib/types';
 
 type SortKey = 'cgpa' | 'name' | 'members' | 'preferences' | 'status' | 'created';
@@ -69,8 +76,10 @@ export function AdminGroups() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-50">Allotment queue</h1>
-          <p className="mt-1 text-sm text-ink-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+            Allotment queue
+          </h1>
+          <p className="mt-1.5 text-balance text-sm leading-relaxed text-ink-400">
             Ranked by average CGPA — the order the batch job places groups in.
           </p>
         </div>
@@ -89,7 +98,8 @@ export function AdminGroups() {
           )}
           {isAdmin && (
             <Link to="/admin" className="btn-primary">
-              Run allotment →
+              <PlayIcon className="h-3.5 w-3.5" />
+              Run allotment
             </Link>
           )}
         </div>
@@ -99,8 +109,17 @@ export function AdminGroups() {
 
       {data && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Ready to allot" value={data.readyToAllot} tone="text-accent-300" />
-          <Stat label="Active" value={data.counts.active} />
+          <Stat
+            label="Ready to allot"
+            value={data.readyToAllot}
+            tone="text-accent-300"
+            icon={<PlayIcon className="h-3.5 w-3.5" />}
+          />
+          <Stat
+            label="Active"
+            value={data.counts.active}
+            icon={<UsersIcon className="h-3.5 w-3.5" />}
+          />
           <Stat label="Allotted" value={data.counts.allotted} tone="text-emerald-400" />
           <Stat label="Waitlisted" value={data.counts.waitlist} tone="text-amber-300" />
         </div>
@@ -133,9 +152,10 @@ export function AdminGroups() {
         </div>
 
         {loading && !data ? (
-          <Spinner />
+          <TableSkeleton rows={6} cols={6} />
         ) : !data || data.groups.length === 0 ? (
           <EmptyState
+            icon={<ListIcon />}
             title="No groups match"
             hint="Try clearing the filters or checking the semester."
           />
@@ -173,11 +193,21 @@ export function AdminGroups() {
               </thead>
               <tbody className="divide-y divide-navy-700/70">
                 {data.groups.map((group, index) => {
-                  const incomplete = group.member_count !== data.groupSize;
+                  const empty = group.member_count === 0;
                   const noPrefs = group.preference_count === 0;
                   return (
                     <tr key={group.id} className="row-hover">
-                      <td className="py-2.5 pr-2 tabular-nums text-ink-500">{index + 1}</td>
+                      <td className="py-2.5 pr-2">
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums ${
+                            index < 3 && sort === 'cgpa' && order === 'desc'
+                              ? 'bg-accent-500/15 text-accent-300'
+                              : 'text-ink-600'
+                          }`}
+                        >
+                          {index + 1}
+                        </span>
+                      </td>
                       <td className="py-2.5 pr-4">
                         <p className="flex items-center gap-2 font-medium text-ink-100">
                           {group.name ?? 'Unnamed'}
@@ -197,11 +227,15 @@ export function AdminGroups() {
                       </td>
                       <td
                         className={`py-2.5 pr-4 text-right tabular-nums ${
-                          incomplete ? 'text-amber-300' : 'text-ink-300'
+                          empty ? 'text-amber-300' : 'text-ink-300'
                         }`}
-                        title={incomplete ? 'Incomplete groups are not allotted' : undefined}
+                        title={
+                          empty
+                            ? 'An empty group cannot be matched to a room'
+                            : `Matched to ${group.member_count === 1 ? 'single' : `${group.member_count}-seater`} rooms`
+                        }
                       >
-                        {group.member_count}/{data.groupSize}
+                        {group.member_count}
                       </td>
                       <td
                         className={`py-2.5 pr-4 text-right tabular-nums ${

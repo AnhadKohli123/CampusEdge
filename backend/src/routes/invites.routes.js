@@ -99,9 +99,9 @@ groupInviteRouter.post(
 
       // Outstanding invites count against capacity, otherwise a lead could send
       // six links for two free seats and the losers hit a confusing error.
-      if (members + pending >= config.groupSize) {
+      if (members + pending >= config.maxGroupSize) {
         throw conflict(
-          `No free seats: ${members} member(s) and ${pending} pending invite(s) for a group of ${config.groupSize}`
+          `No free seats: ${members} member(s) and ${pending} pending invite(s); a group holds at most ${config.maxGroupSize}`
         );
       }
 
@@ -199,7 +199,7 @@ inviteRouter.get(
         semester: row.semester,
         invitedByName: row.invited_by_name,
         memberCount: row.member_count,
-        groupSize: config.groupSize,
+        groupSize: config.maxGroupSize,
         groupStatus: row.group_status,
       },
     });
@@ -263,8 +263,8 @@ inviteRouter.post(
         'SELECT COUNT(*)::int AS n FROM group_members WHERE group_id = $1',
         [group.id]
       );
-      if (counts[0].n >= config.groupSize) {
-        throw conflict(`That group is already full (${config.groupSize} members)`);
+      if (counts[0].n >= config.maxGroupSize) {
+        throw conflict(`That group is already full (${config.maxGroupSize} members)`);
       }
 
       // The unique index on (student_id, semester) is the real guard here; this
