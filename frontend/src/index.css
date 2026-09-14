@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-screen bg-navy-950 bg-navy-glow bg-no-repeat text-ink-100 antialiased;
+    background-attachment: fixed;
+  }
+
+  /* Inputs inherit the dark surface rather than the browser's white default. */
+  select option {
+    @apply bg-navy-850 text-ink-100;
+  }
+
+  ::selection {
+    @apply bg-accent-500/30 text-white;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-navy-700 bg-navy-850/70 p-6 shadow-card
+           backdrop-blur-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm
+           font-medium transition-all duration-150
+           disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-b from-accent-500 to-accent-600 text-white
+           shadow-[0_1px_0_rgba(255,255,255,.15)_inset,0_6px_18px_-8px_rgba(77,141,255,.9)]
+           hover:from-accent-400 hover:to-accent-500 active:translate-y-px;
+  }
+  .btn-secondary {
+    @apply btn border border-navy-600 bg-navy-800/70 text-ink-100
+           hover:border-navy-500 hover:bg-navy-700/70 active:translate-y-px;
+  }
+  .btn-ghost {
+    @apply btn text-ink-300 hover:bg-navy-800 hover:text-ink-100;
+  }
+  .btn-danger {
+    @apply btn border border-rose-500/30 bg-rose-500/10 text-rose-300
+           hover:border-rose-500/50 hover:bg-rose-500/20;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-navy-700 bg-navy-900/80 px-3.5 py-2.5
+           text-sm text-ink-50 placeholder:text-ink-500
+           transition-colors
+           focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/25;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink-300;
+  }
+  .hint {
+    @apply mt-1.5 text-xs text-ink-500;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* Section heading used above cards and tables. */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-wider text-ink-500;
+  }
+
+  .table-head {
+    @apply border-b border-navy-700 text-xs font-semibold uppercase tracking-wide text-ink-500;
+  }
+  .row-hover {
+    @apply transition-colors hover:bg-navy-800/50;
+  }
+}
